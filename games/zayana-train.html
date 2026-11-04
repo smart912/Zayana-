@@ -70,13 +70,27 @@ h1{font-family:var(--display);font-weight:400;font-size:clamp(28px,7vw,40px);mar
 .card:hover{transform:translateY(-3px)}
 .card.sel{background:#ffe08a;transform:translateY(-8px);box-shadow:0 10px 0 var(--ink)}
 .card:focus-visible{outline:4px solid var(--oman-red);outline-offset:3px}
-.tray-empty{align-self:center;font-weight:700;color:#7a5a43}
+.tray-empty{direction:rtl;align-self:center;font-weight:700;color:#7a5a43}
 .actions{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}
 .go{font-family:var(--display);font-size:26px;padding:8px 34px 2px;border:3px solid var(--ink);border-radius:999px;background:var(--oman-red);color:#fff;cursor:pointer;box-shadow:0 5px 0 var(--ink)}
 .go:disabled{background:#c9b8a8;color:#f5ede4;cursor:not-allowed}
 .go:focus-visible,.ghost:focus-visible{outline:4px solid var(--oman-green);outline-offset:3px}
 .ghost{font:700 16px var(--body);padding:8px 18px;border:2px solid var(--ink);border-radius:999px;background:var(--paper);cursor:pointer;color:var(--ink)}
 .dates{font-size:15px;text-align:center;color:#6b4a35;font-weight:600}
+.setup{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:rgba(42,26,18,.55);padding:16px max(16px,env(safe-area-inset-right,0px)) 16px max(16px,env(safe-area-inset-left,0px))}
+.setup[hidden]{display:none}
+.setup-card{width:100%;max-width:420px;background:var(--paper);border:3px solid var(--ink);border-radius:24px;padding:20px;display:flex;flex-direction:column;gap:14px;box-shadow:6px 6px 0 rgba(42,26,18,.35)}
+.setup-card h2{font-family:var(--display);font-weight:400;font-size:30px;margin:0;color:var(--oman-red)}
+.setup-card p{margin:0;font-weight:600;line-height:1.6}
+.setup-card label{font-weight:800}
+.setup-card input{font:700 22px var(--body);padding:8px 14px;border:3px solid var(--ink);border-radius:14px;width:100%;background:#fff;color:var(--ink)}
+.setup-card input:focus-visible{outline:4px solid var(--oman-green);outline-offset:2px}
+.kind{display:flex;gap:10px}
+.kind button{flex:1;font:800 18px var(--body);padding:10px;border:3px solid var(--ink);border-radius:14px;background:#fff;cursor:pointer;color:var(--ink)}
+.kind button[aria-pressed="true"]{background:#ffe08a}
+.kind button:focus-visible{outline:4px solid var(--oman-green);outline-offset:2px}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.row .go{flex:1}
 @media (max-width:440px){.zay{width:84px}.host{min-height:126px}.card{width:54px;height:62px;font-size:34px}.gap-hide{display:none}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
@@ -85,6 +99,7 @@ h1{font-family:var(--display);font-weight:400;font-size:clamp(28px,7vw,40px);mar
   <header>
     <h1>قطار زيانه</h1>
     <div class="chips">
+      <span class="chip"><button id="btn-player" aria-label="غيّر اللاعب">👤 لاعب</button></span>
       <span class="chip" id="chip-dates">🌴 ٠</span>
       <span class="chip" id="chip-level">المستوى ١</span>
       <span class="chip"><button id="btn-digits" aria-label="تبديل شكل الأرقام">١٢٣ ⇄ 123</button></span>
@@ -133,6 +148,24 @@ h1{font-family:var(--display);font-weight:400;font-size:clamp(28px,7vw,40px);mar
     <button class="go" id="go" disabled>انطلق! 🚂</button>
     <button class="ghost" id="reset">رجّع البطاقات</button>
   </div>
+  <section class="setup" id="setup" hidden>
+    <form class="setup-card" id="setup-form">
+      <h2>حياك في قطار زيانه!</h2>
+      <p>اكتب اسمك عشان زيانه تناديك فيه وتمدحك بصوتها 🧕🔊</p>
+      <label for="pname">وش اسمك؟</label>
+      <input id="pname" maxlength="20" autocomplete="off" placeholder="مثلاً: مريم">
+      <div class="kind" role="group" aria-label="ولد أو بنت">
+        <button type="button" id="k-girl" aria-pressed="true">👧 بنت</button>
+        <button type="button" id="k-boy" aria-pressed="false">👦 ولد</button>
+      </div>
+      <div class="row">
+        <button type="submit" class="go">يلا نلعب!</button>
+        <button type="button" class="ghost" id="try-voice">🔊 اسمع زيانه</button>
+      </div>
+      <p class="dates" id="voice-note"></p>
+    </form>
+  </section>
+
   <p class="dates">كل رحلة صحيحة تعطيك تمرة 🌴<br>و٣ رحلات صح ورى بعض تطلّعك للمستوى اللي بعده</p>
 </div>
 
@@ -140,14 +173,13 @@ h1{font-family:var(--display);font-weight:400;font-size:clamp(28px,7vw,40px);mar
 (() => {
   const PLACES = ['آحاد','عشرات','مئات','ألوف'];
   const STATIONS = ['مسقط','نزوى','صور','صحار','صلالة','خصب','بهلاء','مطرح','الجبل الأخضر','عبري','الرستاق','مصيرة'];
-  const CHEERS = ['ما شاء الله عليك! 🌟','زين زين! تستاهل تمرة 🌴','برافو يا بطل! 🎉','الله يحفظك، صح! 💚','وصلنا بالسلامة! 🚂'];
-  const AR = '٠١٢٣٤٥٦٧٨٩';
+    const AR = '٠١٢٣٤٥٦٧٨٩';
   const $ = id => document.getElementById(id);
   const store = {
     get(k, d){ try { const v = localStorage.getItem('zayana-train-'+k); return v === null ? d : JSON.parse(v); } catch { return d; } },
     set(k, v){ try { localStorage.setItem('zayana-train-'+k, JSON.stringify(v)); } catch {} }
   };
-  let st = { level: store.get('level',1), dates: store.get('dates',0), station: store.get('station',0), streak: 0, arabic: store.get('arabic',true), sound: store.get('sound',true) };
+  let st = { level: store.get('level',1), dates: store.get('dates',0), station: store.get('station',0), streak: 0, arabic: store.get('arabic',true), sound: store.get('sound',true), name: store.get('name',''), girl: store.get('girl',true) };
   let round = null, selected = null, busy = false;
 
   const fmt = n => { const s = String(n); return st.arabic ? s.replace(/\d/g, d => AR[d]) : s; };
@@ -165,6 +197,55 @@ h1{font-family:var(--display);font-weight:400;font-size:clamp(28px,7vw,40px);mar
         o.connect(g).connect(ac.destination); o.start(t); o.stop(t+dur*1.7);
       });
     } catch {}
+  }
+
+  // ---- Zayana's voice (the device's Arabic text-to-speech) ----
+  const tts = window.speechSynthesis;
+  let voice = null;
+  function pickVoice(){
+    if (!tts) return;
+    const vs = tts.getVoices().filter(v => /^ar/i.test(v.lang));
+    const female = /female|laila|layla|hoda|salma|zariyah|fatima|amira|hala|mona|noura|sana|zeina|maryam/i;
+    const gulf = /ar-(om|ae|sa|kw|qa|bh)/i;
+    voice = vs.find(v => female.test(v.name) && gulf.test(v.lang)) || vs.find(v => female.test(v.name)) || vs.find(v => gulf.test(v.lang)) || vs[0] || null;
+  }
+  if (tts) { pickVoice(); tts.addEventListener?.('voiceschanged', pickVoice); }
+  function speak(text){
+    if (!st.sound || !tts) return;
+    try {
+      tts.cancel();
+      const u = new SpeechSynthesisUtterance(text.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, '').trim());
+      u.lang = voice ? voice.lang : 'ar-SA'; if (voice) u.voice = voice;
+      u.rate = 0.95; u.pitch = 1.3;
+      tts.speak(u);
+    } catch {}
+  }
+  const nm = () => st.name.trim();
+  const pick = a => a[Math.floor(Math.random() * a.length)];
+  function praise(){
+    const n = nm(), g = st.girl;
+    const you = n ? 'يا ' + n : (g ? 'يا بطلة' : 'يا بطل');
+    return pick(g ? [
+      'عاشت إيدك ' + you + '! كمّلي يا الغالية',
+      'ما شاء الله عليك ' + you + '، شاطرة!',
+      'يلا ' + (n || 'يا بطلة') + '، أحسنتِ! كمّلي',
+      'زين زين ' + you + '، أنتِ بطلة!',
+      'الله يحفظك ' + you + '، صح عليك!'
+    ] : [
+      'عاشت إيدك ' + you + '! كمّل يا الغالي',
+      'ما شاء الله عليك ' + you + '، شاطر!',
+      'يلا ' + (n || 'يا بطل') + '، أحسنت! كمّل',
+      'زين زين ' + you + '، أنت بطل!',
+      'الله يحفظك ' + you + '، صح عليك!'
+    ]);
+  }
+  function oops(){
+    const n = nm(), g = st.girl;
+    return (n ? 'ما عليه يا ' + n : 'ما عليه') + (g ? '، حاولي مرة ثانية' : '، حاول مرة ثانية');
+  }
+  function levelUp(){
+    const n = nm(), g = st.girl;
+    return 'واو' + (n ? ' يا ' + n : '') + '! ' + (g ? 'طلعتي' : 'طلعت') + ' للمستوى ' + st.level;
   }
 
   function say(html){ $('bubble').innerHTML = html; }
@@ -190,6 +271,7 @@ h1{font-family:var(--display);font-weight:400;font-size:clamp(28px,7vw,40px);mar
     $('chip-dates').textContent = '🌴 ' + fmt(st.dates);
     $('chip-level').textContent = 'المستوى ' + fmt(st.level);
     $('station').textContent = 'المحطة: ' + STATIONS[st.station % STATIONS.length];
+    $('btn-player').textContent = '👤 ' + (nm() || 'لاعب');
     $('btn-sound').textContent = st.sound ? '🔊' : '🔇';
     // wagons: left→right = highest place → ones (matches how the number is written)
     const w = $('wagons'); w.innerHTML = '';
@@ -248,8 +330,10 @@ h1{font-family:var(--display);font-weight:400;font-size:clamp(28px,7vw,40px);mar
       let up = false;
       if (st.streak >= 3 && st.level < 3) { st.level++; st.streak = 0; up = true; }
       const next = STATIONS[(st.station + 1) % STATIONS.length];
-      say(CHEERS[Math.floor(Math.random()*CHEERS.length)] + '<small>' + expanded() + '<br>رايحين ' + next + (up ? '، وطلعت للمستوى ' + fmt(st.level) + '! عربة جديدة انضافت 🚃' : '') + '</small>');
+      const line = praise();
+      say(line + ' 🌟<small>' + expanded() + '<br>رايحين ' + next + (up ? '، و' + (st.girl ? 'طلعتي' : 'طلعت') + ' للمستوى ' + fmt(st.level) + '! عربة جديدة انضافت 🚃' : '') + '</small>');
       zay('cheer'); beep([523,659,784,1046], .13);
+      setTimeout(() => speak(up ? line + '. ' + levelUp() : line), 450);
       const tr = $('train');
       setTimeout(() => { tr.classList.add('leave'); beep([300,300], .25); }, 900);
       setTimeout(() => {
@@ -264,8 +348,9 @@ h1{font-family:var(--display);font-weight:400;font-size:clamp(28px,7vw,40px);mar
       const pos = round.checked.findIndex(ok => !ok);
       const place = k - 1 - pos;
       const want = round.digits[pos];
-      say('قريب! حاول مرة ثانية 💪<small>الرقم ' + fmt(want) + ' مكانه في عربة ال' + PLACES[place] + '. العربات الحمراء تحتاج تعديل.</small>');
+      say(oops() + ' 💪<small>الرقم ' + fmt(want) + ' مكانه في عربة ال' + PLACES[place] + '. العربات الحمراء تحتاج تعديل.</small>');
       zay('sad'); beep([330,247], .18);
+      setTimeout(() => speak(oops()), 350);
       render();
     }
   }
@@ -275,6 +360,37 @@ h1{font-family:var(--display);font-weight:400;font-size:clamp(28px,7vw,40px);mar
   $('btn-digits').onclick = () => { st.arabic = !st.arabic; store.set('arabic', st.arabic); render(); };
   $('btn-sound').onclick = () => { st.sound = !st.sound; store.set('sound', st.sound); render(); };
 
+  // ---- player setup ----
+  let girlSel = st.girl;
+  function kindUI(){ $('k-girl').setAttribute('aria-pressed', girlSel); $('k-boy').setAttribute('aria-pressed', !girlSel); }
+  function openSetup(){
+    $('pname').value = st.name; girlSel = st.girl; kindUI();
+    $('voice-note').textContent = tts ? '' : 'جهازك ما يدعم الصوت، بتشوف كلام زيانه مكتوب بس.';
+    $('setup').hidden = false; setTimeout(() => $('pname').focus(), 50);
+  }
+  $('k-girl').onclick = () => { girlSel = true; kindUI(); };
+  $('k-boy').onclick = () => { girlSel = false; kindUI(); };
+  $('try-voice').onclick = () => {
+    const n = $('pname').value.trim();
+    const keep = { name: st.name, girl: st.girl };
+    st.name = n; st.girl = girlSel; const was = st.sound; st.sound = true;
+    pickVoice(); speak('هلا والله' + (n ? ' يا ' + n : '') + '! أنا زيانه، يلا نركب القطار');
+    st.sound = was; st.name = keep.name; st.girl = keep.girl;
+    if (tts && !voice) $('voice-note').textContent = 'ما لقيت صوت عربي في جهازك، ممكن يطلع الصوت بلكنة ثانية.';
+  };
+  $('setup-form').onsubmit = ev => {
+    ev.preventDefault();
+    st.name = $('pname').value.trim().slice(0, 20); st.girl = girlSel;
+    store.set('name', st.name); store.set('girl', st.girl);
+    $('setup').hidden = true;
+    const hi = 'هلا والله' + (st.name ? ' يا ' + st.name : '') + '! أنا زيانه سايقة القطار';
+    say(hi + ' 🚂<small>حط كل رقم في عربته الصح: الآحاد، العشرات، المئات، الألوف.</small>');
+    speak(hi + '، يلا نبدأ!');
+    render();
+  };
+  $('btn-player').onclick = openSetup;
+
   newRound();
+  if (store.get('name', null) === null) openSetup();
 })();
 </script>
