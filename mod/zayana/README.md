@@ -6,3 +6,9 @@ reading files, running commands, writing code, and finishing a turn.
 
 - `/zayana` brings her back, `/zayana hide` hides her, `/zayana pane` opens a large pane.
 - On the desktop, web and mobile apps she is an animated SVG; in a terminal she is a line of text.
+
+## Install
+
+```
+/plugin install zayana --marketplace smart912/Zayana-
+```

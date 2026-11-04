@@ -8,9 +8,23 @@
     "SessionStart": [
       {
         "hooks": [
-          { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/scripts/zayana.sh\" >&2; echo 'Zayana (زيانه) is the active persona for this project.'" }
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/scripts/zayana.sh\" >&2; echo 'Zayana (زيانه) is the active persona for this project.'"
+          }
         ]
       }
     ]
+  },
+  "extraKnownMarketplaces": {
+    "zayana": {
+      "source": {
+        "source": "github",
+        "repo": "smart912/Zayana-"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "zayana@zayana": true
   }
 }

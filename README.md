@@ -28,3 +28,10 @@
 (تدوّر في الملفات 🔍، تشغّل أوامر 💻، تكتب كود ✍️، وتقول "خلصت!" لما يخلص).
 - `/zayana` ترجعها · `/zayana hide` تخفيها · `/zayana pane` نافذة كبيرة
 - للتجربة محلياً: `claude --plugin-dir mod/zayana`
+
+### تثبيت زيانه في أي جلسة Claude Code
+الإعداد في `.claude/settings.json` يفعّلها تلقائياً لما تفتح هذا المشروع. ولو ما طلعت، اكتب:
+
+```
+/plugin install zayana --marketplace smart912/Zayana-
+```

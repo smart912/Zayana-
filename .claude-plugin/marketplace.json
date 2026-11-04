@@ -1,0 +1,7 @@
+{
+  "name": "zayana",
+  "owner": { "name": "smart912" },
+  "plugins": [
+    { "name": "zayana", "source": "./mod/zayana", "description": "زيانه: Omani cartoon companion that bounces above the prompt and reacts to what Claude does" }
+  ]
+}
