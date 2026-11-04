@@ -1,0 +1,130 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<defs>
+    <linearGradient id="wood" x1="0" x2="1">
+      <stop offset="0" stop-color="#5a3a26"/><stop offset=".5" stop-color="#6e4930"/><stop offset="1" stop-color="#4e3120"/>
+    </linearGradient>
+    <linearGradient id="scarf" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1fa155"/><stop offset="1" stop-color="#0f7a3c"/>
+    </linearGradient>
+    <linearGradient id="silver" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#eef1f3"/><stop offset="1" stop-color="#9aa5ad"/>
+    </linearGradient>
+    <!-- red fabric with gold & green paisley -->
+    <pattern id="paisley" width="34" height="34" patternUnits="userSpaceOnUse">
+      <rect width="34" height="34" fill="#d8232f"/>
+      <path d="M9 22 C3 16 6 6 13 7 C19 8 18 16 13 17 C15 20 13 24 9 22Z" fill="#e3b341"/>
+      <path d="M11 12 q2 -2 3 1" stroke="#2f8f4a" stroke-width="1.6" fill="none"/>
+      <path d="M24 30 c-4 -3 -2 -9 3 -8 c4 1 2 7 -3 8z" fill="#3f9a4f"/>
+      <path d="M26 9 c3 -3 7 -1 6 3 c-3 1 -5 0 -6 -3z" fill="#e3b341"/>
+      <circle cx="4" cy="31" r="1.6" fill="#e3b341"/>
+    </pattern>
+    <!-- gold embroidery band -->
+    <pattern id="gold" width="12" height="12" patternUnits="userSpaceOnUse">
+      <rect width="12" height="12" fill="#e0b04a"/>
+      <path d="M6 1 L11 6 L6 11 L1 6Z" fill="#c4473a"/>
+      <circle cx="6" cy="6" r="1.6" fill="#fff6dc"/>
+    </pattern>
+    <!-- white flowers on green scarf -->
+    <pattern id="flowers" width="46" height="46" patternUnits="userSpaceOnUse">
+      <g transform="translate(14 14)" fill="#f4f1e6">
+        <circle r="3.2" cx="0" cy="-5"/><circle r="3.2" cx="5" cy="0"/><circle r="3.2" cx="0" cy="5"/><circle r="3.2" cx="-5" cy="0"/>
+        <circle r="2.4" fill="#e3b341"/>
+      </g>
+      <g transform="translate(36 36) scale(.7)" fill="#f4f1e6">
+        <circle r="3.2" cx="0" cy="-5"/><circle r="3.2" cx="5" cy="0"/><circle r="3.2" cx="0" cy="5"/><circle r="3.2" cx="-5" cy="0"/>
+        <circle r="2.4" fill="#e3b341"/>
+      </g>
+    </pattern>
+  </defs>
+<circle cx="256" cy="250" r="226" fill="#fff" stroke="#e08a00" stroke-width="10"/>
+<circle cx="256" cy="250" r="200" fill="#e08a00" opacity=".12"/>
+<g transform="translate(124 22) scale(.66)">  <!-- back of green lihaf, draping down the right side with tassels -->
+  <path d="M140 130 Q118 230 148 270 L250 300 Q300 360 300 450 L330 455 Q330 330 268 240 Q262 150 240 112Z" fill="url(#scarf)"/>
+  <path d="M140 130 Q118 230 148 270 L250 300 Q300 360 300 450 L330 455 Q330 330 268 240 Q262 150 240 112Z" fill="url(#flowers)"/>
+  <!-- tassels -->
+  <g stroke-width="5" stroke-linecap="round">
+    <path d="M300 450 l-6 46" stroke="#e3b341"/><path d="M306 451 l-2 50" stroke="#c0392b"/>
+    <path d="M312 452 l2 46" stroke="#2d4fb0"/><path d="M318 453 l6 44" stroke="#f0e6d2"/>
+    <path d="M324 454 l10 40" stroke="#16a085"/><path d="M329 455 l14 34" stroke="#e67e22"/>
+    <path d="M303 450 l-12 40" stroke="#8e44ad"/>
+  </g>
+
+  <!-- sirwal (green trousers) with embroidered cuffs -->
+  <path d="M160 470 L156 560 L196 560 L198 480 L202 480 L204 560 L244 560 L240 470Z" fill="#17924a"/>
+  <rect x="155" y="538" width="42" height="22" fill="url(#gold)"/>
+  <rect x="203" y="538" width="42" height="22" fill="url(#gold)"/>
+  <!-- silver shoes -->
+  <path d="M150 560 h50 q4 22 -20 22 h-12 q-22 0 -18 -22z" fill="url(#silver)" stroke="#8a959c"/>
+  <path d="M200 560 h50 q4 22 -18 22 h-12 q-24 0 -20 -22z" fill="url(#silver)" stroke="#8a959c"/>
+
+  <!-- red dishdasha -->
+  <path d="M160 250 Q145 360 128 470 L272 470 Q255 360 240 250 Q200 236 160 250Z" fill="url(#paisley)"/>
+  <!-- white/green vertical trims -->
+  <path d="M165 258 Q152 360 140 452" stroke="#f4f1e6" stroke-width="5" fill="none" stroke-dasharray="4 2"/>
+  <path d="M235 258 Q248 360 260 452" stroke="#f4f1e6" stroke-width="5" fill="none" stroke-dasharray="4 2"/>
+  <!-- embroidered gold V-neck panel -->
+  <path d="M178 246 L222 246 L218 330 L200 360 L182 330Z" fill="url(#gold)" stroke="#17924a" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M200 252 V350" stroke="#f4f1e6" stroke-width="3" stroke-dasharray="3 2"/>
+  <!-- hem: gold embroidery + blue band -->
+  <path d="M131 448 L269 448 L272 466 L128 466Z" fill="url(#gold)"/>
+  <path d="M128 466 L272 466 L273 482 L127 482Z" fill="#2340a8"/>
+
+  <!-- left arm (down, hand by the dress) -->
+  <path d="M162 256 Q130 300 128 400 L152 404 Q154 330 172 290Z" fill="url(#paisley)"/>
+  <rect x="126" y="388" width="28" height="18" rx="3" fill="url(#gold)" transform="rotate(3 140 397)"/>
+  <circle cx="141" cy="418" r="13" fill="#e9b892"/>
+  <rect x="129" y="403" width="24" height="5" rx="2" fill="#e3b341"/>
+
+  <!-- right arm (raised, holding the scarf) -->
+  <path d="M236 252 Q272 286 266 346 Q250 352 238 340 Q244 304 226 284Z" fill="url(#paisley)"/>
+  <path d="M240 340 Q262 356 268 340 L286 302 L260 290 L246 318Z" fill="url(#paisley)"/>
+  <rect x="259" y="293" width="26" height="14" rx="3" fill="url(#gold)" transform="rotate(-62 272 300)"/>
+  <ellipse cx="276" cy="284" rx="12" ry="14" fill="#e9b892"/>
+  <path d="M268 276 q8 -6 16 2" stroke="#c99674" stroke-width="2" fill="none"/>
+
+  <!-- neck + gold choker -->
+  <rect x="186" y="220" width="28" height="30" fill="#e9b892"/>
+  <path d="M182 232 Q200 246 218 232 L220 240 Q200 258 180 240Z" fill="#e3b341" stroke="#b8862a"/>
+  <g fill="#e3b341" stroke="#b8862a" stroke-width=".8">
+    <circle cx="188" cy="250" r="3"/><circle cx="196" cy="254" r="3"/><circle cx="204" cy="254" r="3"/><circle cx="212" cy="250" r="3"/>
+  </g>
+
+  <!-- face -->
+  <ellipse cx="200" cy="170" rx="56" ry="62" fill="#f2c7a2"/>
+  <!-- hair, centre parting -->
+  <path d="M146 165 Q144 112 200 106 Q256 112 254 165 Q248 132 224 128 Q206 126 200 116 Q194 126 176 128 Q152 132 146 165Z" fill="#3a2418"/>
+  <path d="M146 160 Q140 200 152 222 L158 210 Q150 190 152 160Z" fill="#3a2418"/>
+  <path d="M254 160 Q260 200 248 222 L242 210 Q250 190 248 160Z" fill="#3a2418"/>
+
+  <!-- front of lihaf framing the head, with gold & white embroidered border -->
+  <path d="M136 200 Q128 96 200 86 Q272 96 264 200 L256 200 Q260 112 200 102 Q140 112 144 200Z" fill="url(#scarf)"/>
+  <path d="M142 200 Q138 108 200 98 Q262 108 258 200" stroke="url(#gold)" stroke-width="8" fill="none"/>
+  <path d="M146 198 Q143 114 200 106 Q257 114 254 198" stroke="#f4f1e6" stroke-width="2" fill="none" stroke-dasharray="3 3"/>
+
+  <!-- gold tikka on the parting -->
+  <path d="M200 106 V138" stroke="#e3b341" stroke-width="2"/>
+  <circle cx="200" cy="120" r="2.6" fill="#e3b341"/>
+  <path d="M200 136 l7 8 l-7 10 l-7 -10z" fill="#e3b341" stroke="#b8862a"/>
+  <circle cx="200" cy="145" r="2.2" fill="#c0392b"/>
+
+  <!-- eyes -->
+  <ellipse cx="178" cy="176" rx="11" ry="13" fill="#fff"/>
+  <ellipse cx="222" cy="176" rx="11" ry="13" fill="#fff"/>
+  <circle cx="179" cy="179" r="8" fill="#4a2c1a"/>
+  <circle cx="223" cy="179" r="8" fill="#4a2c1a"/>
+  <circle cx="182" cy="175" r="2.6" fill="#fff"/>
+  <circle cx="226" cy="175" r="2.6" fill="#fff"/>
+  <path d="M166 170 Q178 161 190 170" stroke="#1a0f0a" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+  <path d="M210 170 Q222 161 234 170" stroke="#1a0f0a" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+  <path d="M168 156 Q178 151 190 155" stroke="#3a2418" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M210 155 Q222 151 232 156" stroke="#3a2418" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <!-- cheeks, nose, gentle smile -->
+  <ellipse cx="164" cy="198" rx="10" ry="6" fill="#f08a80" opacity=".5"/>
+  <ellipse cx="236" cy="198" rx="10" ry="6" fill="#f08a80" opacity=".5"/>
+  <path d="M198 188 Q202 196 197 197" stroke="#c99674" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+  <path d="M187 208 Q200 218 213 208" stroke="#b0414c" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+
+</g>
+<rect x="56" y="420" width="400" height="74" rx="37" fill="#e08a00" stroke="#fff" stroke-width="8"/>
+<text x="256" y="469" text-anchor="middle" direction="rtl" unicode-bidi="embed" font-family="Tahoma, Arial, sans-serif" font-size="36" font-weight="bold" fill="#fff">صباح الخير ☀️</text>
+</svg>
