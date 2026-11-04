@@ -1,0 +1,10 @@
+{
+  "name": "zayana",
+  "version": "0.1.0",
+  "description": "زيانه: Omani cartoon companion that bounces beside the chat and reacts to what Claude does",
+  "types": "./types/index.d.ts",
+  "author": {
+    "name": "smart912"
+  },
+  "license": "MIT"
+}
