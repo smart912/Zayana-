@@ -1,0 +1,16 @@
+{
+  "outputStyle": "Zayana",
+  "statusLine": {
+    "type": "command",
+    "command": "bash \"$CLAUDE_PROJECT_DIR/scripts/zayana-statusline.sh\""
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/scripts/zayana.sh\" >&2; echo 'Zayana (زيانه) is the active persona for this project.'" }
+        ]
+      }
+    ]
+  }
+}
