@@ -83,6 +83,8 @@ h1{font-family:var(--display);font-weight:400;font-size:clamp(28px,7vw,40px);mar
 .setup-card h2{font-family:var(--display);font-weight:400;font-size:30px;margin:0;color:var(--oman-red)}
 .setup-card p{margin:0;font-weight:600;line-height:1.6}
 .setup-card label{font-weight:800}
+.setup-card select{font:700 16px var(--body);padding:8px 12px;border:3px solid var(--ink);border-radius:14px;width:100%;background:#fff;color:var(--ink)}
+.setup-card select:focus-visible{outline:4px solid var(--oman-green);outline-offset:2px}
 .setup-card input{font:700 22px var(--body);padding:8px 14px;border:3px solid var(--ink);border-radius:14px;width:100%;background:#fff;color:var(--ink)}
 .setup-card input:focus-visible{outline:4px solid var(--oman-green);outline-offset:2px}
 .kind{display:flex;gap:10px}
@@ -158,6 +160,8 @@ h1{font-family:var(--display);font-weight:400;font-size:clamp(28px,7vw,40px);mar
         <button type="button" id="k-girl" aria-pressed="true">👧 بنت</button>
         <button type="button" id="k-boy" aria-pressed="false">👦 ولد</button>
       </div>
+      <label for="pvoice">صوت زيانه</label>
+      <select id="pvoice"></select>
       <div class="row">
         <button type="submit" class="go">يلا نلعب!</button>
         <button type="button" class="ghost" id="try-voice">🔊 اسمع زيانه</button>
@@ -202,12 +206,34 @@ h1{font-family:var(--display);font-weight:400;font-size:clamp(28px,7vw,40px);mar
   // ---- Zayana's voice (the device's Arabic text-to-speech) ----
   const tts = window.speechSynthesis;
   let voice = null;
+  const arVoices = () => (tts ? tts.getVoices() : []).filter(v => /^ar/i.test(v.lang));
   function pickVoice(){
     if (!tts) return;
-    const vs = tts.getVoices().filter(v => /^ar/i.test(v.lang));
-    const female = /female|laila|layla|hoda|salma|zariyah|fatima|amira|hala|mona|noura|sana|zeina|maryam/i;
-    const gulf = /ar-(om|ae|sa|kw|qa|bh)/i;
-    voice = vs.find(v => female.test(v.name) && gulf.test(v.lang)) || vs.find(v => female.test(v.name)) || vs.find(v => gulf.test(v.lang)) || vs[0] || null;
+    const vs = arVoices();
+    const chosen = store.get('voice', '');
+    const female = /female|aysha|ayesha|fatima|laila|layla|hoda|salma|zariyah|amira|hala|mona|noura|sana|zeina|maryam|amany|rana|reem/i;
+    const oman = /ar[-_]om/i, gulf = /ar[-_](om|ae|sa|kw|qa|bh)/i, natural = /natural|online|neural/i;
+    voice = vs.find(v => v.name === chosen)
+      || vs.find(v => oman.test(v.lang) && female.test(v.name))
+      || vs.find(v => oman.test(v.lang))
+      || vs.find(v => gulf.test(v.lang) && female.test(v.name) && natural.test(v.name))
+      || vs.find(v => gulf.test(v.lang) && female.test(v.name))
+      || vs.find(v => female.test(v.name))
+      || vs.find(v => gulf.test(v.lang)) || vs[0] || null;
+    fillVoices();
+  }
+  function fillVoices(){
+    const sel = document.getElementById('pvoice'); if (!sel) return;
+    const vs = arVoices();
+    sel.innerHTML = '';
+    if (!vs.length) { const o = document.createElement('option'); o.textContent = 'ما فيه صوت عربي في هذا الجهاز'; sel.appendChild(o); sel.disabled = true; return; }
+    sel.disabled = false;
+    vs.forEach(v => {
+      const o = document.createElement('option'); o.value = v.name;
+      o.textContent = (/ar[-_]om/i.test(v.lang) ? '🇴🇲 ' : '') + v.name.replace(/^Microsoft\s+/, '').replace(/\s*-\s*Arabic.*$/i, '') + ' (' + v.lang + ')';
+      if (voice && v.name === voice.name) o.selected = true;
+      sel.appendChild(o);
+    });
   }
   if (tts) { pickVoice(); tts.addEventListener?.('voiceschanged', pickVoice); }
   function speak(text){
@@ -216,7 +242,8 @@ h1{font-family:var(--display);font-weight:400;font-size:clamp(28px,7vw,40px);mar
       tts.cancel();
       const u = new SpeechSynthesisUtterance(text.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, '').trim());
       u.lang = voice ? voice.lang : 'ar-SA'; if (voice) u.voice = voice;
-      u.rate = 0.95; u.pitch = 1.3;
+      const nat = voice && /natural|online|neural/i.test(voice.name);
+      u.rate = 0.95; u.pitch = nat ? 1.1 : 1.3;
       tts.speak(u);
     } catch {}
   }
@@ -365,9 +392,12 @@ h1{font-family:var(--display);font-weight:400;font-size:clamp(28px,7vw,40px);mar
   function kindUI(){ $('k-girl').setAttribute('aria-pressed', girlSel); $('k-boy').setAttribute('aria-pressed', !girlSel); }
   function openSetup(){
     $('pname').value = st.name; girlSel = st.girl; kindUI();
-    $('voice-note').textContent = tts ? '' : 'جهازك ما يدعم الصوت، بتشوف كلام زيانه مكتوب بس.';
+    pickVoice();
+    $('voice-note').textContent = !tts ? 'جهازك ما يدعم الصوت، بتشوف كلام زيانه مكتوب بس.'
+      : (voice && /ar[-_]om/i.test(voice.lang) ? '' : 'نصيحة: افتح اللعبة في متصفح Microsoft Edge عشان يطلع لك صوت عُماني 🇴🇲');
     $('setup').hidden = false; setTimeout(() => $('pname').focus(), 50);
   }
+  $('pvoice').onchange = ev => { store.set('voice', ev.target.value); pickVoice(); };
   $('k-girl').onclick = () => { girlSel = true; kindUI(); };
   $('k-boy').onclick = () => { girlSel = false; kindUI(); };
   $('try-voice').onclick = () => {
