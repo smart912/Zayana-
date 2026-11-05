@@ -1,0 +1,39 @@
+name: Build Zayana Desktop
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'desktop/**'
+      - '.github/workflows/zayana-desktop.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - run: npx electron-builder --win --publish never
+      - name: Read version
+        id: v
+        shell: bash
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: zayana-desktop-v${{ steps.v.outputs.version }}
+          name: Zayana Desktop ${{ steps.v.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          body: |
+            زيانه على سطح المكتب 🧕 نزّل Zayana-Setup.exe وافتحه.
+            Based on Khalfan by Ahmed Al Araimi — https://github.com/Ahmed-Al-Araimi/khalfan
+          files: desktop/dist/Zayana-Setup.exe
