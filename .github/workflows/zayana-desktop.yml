@@ -44,8 +44,10 @@ jobs:
               --notes "زيانه على سطح المكتب 🧕 نزّل Zayana-Setup.exe وافتحه.
           Based on Khalfan by Ahmed Al Araimi — https://github.com/Ahmed-Al-Araimi/khalfan"
           fi
+          ok=0
           for i in 1 2 3 4 5; do
-            if gh release upload "$TAG" dist/Zayana-Setup.exe --clobber; then echo "uploaded"; exit 0; fi
+            if gh release upload "$TAG" dist/Zayana-Setup.exe --clobber; then ok=1; break; fi
             echo "upload failed (try $i), waiting..."; sleep $((i * 15))
           done
-          exit 1
+          [ "$ok" = 1 ] || exit 1
+          gh release edit "$TAG" --draft=false --latest --target "$GITHUB_SHA"
