@@ -1,0 +1,30 @@
+{
+  "name": "zayana-desktop",
+  "productName": "Zayana",
+  "version": "0.1.0",
+  "description": "Zayana, an Omani cartoon girl who lives on your Windows desktop",
+  "main": "main.js",
+  "private": true,
+  "author": "smart912",
+  "license": "SEE LICENSE IN README.md",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win --publish never"
+  },
+  "dependencies": {
+    "koffi": "3.3.3"
+  },
+  "devDependencies": {
+    "electron": "40.9.3",
+    "electron-builder": "26.18.0"
+  },
+  "build": {
+    "appId": "com.smart912.zayana",
+    "productName": "Zayana",
+    "artifactName": "Zayana-Setup.exe",
+    "files": ["main.js", "preload.js", "win32.js", "zayana.ico", "zayana.png", "app/**", "package.json"],
+    "npmRebuild": false,
+    "win": { "target": [{ "target": "nsis", "arch": ["x64"] }], "icon": "build/icon.png" },
+    "nsis": { "oneClick": true, "perMachine": false, "runAfterFinish": true, "shortcutName": "Zayana" }
+  }
+}

@@ -1,0 +1,52 @@
+html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; user-select: none; }
+[hidden] { display: none !important; }
+
+#z { position: fixed; left: 0; top: 0; will-change: transform; cursor: grab; }
+#z.drag { cursor: grabbing; }
+#inner { width: 100%; height: 100%; transform-origin: 50% 100%; }
+#flip { width: 100%; height: 100%; }
+#flip.left { transform: scaleX(-1); }
+#flip svg { width: 100%; height: 100%; display: block; overflow: visible; filter: drop-shadow(0 3px 3px rgba(0,0,0,.25)); }
+
+/* her parts (groups inside the SVG) */
+#legL, #legR { transform-box: fill-box; transform-origin: 50% 0%; }
+#arm { transform-box: fill-box; transform-origin: 25% 90%; }
+#tassels { transform-box: fill-box; transform-origin: 20% 0%; animation: sway 2.4s ease-in-out infinite; }
+#eyesShut, #mouthO { display: none; }
+.blink #eyesOpen, .sleep #eyesOpen { display: none; }
+.blink #eyesShut, .sleep #eyesShut { display: inline; }
+.mouth #smile, .oh #smile { display: none; }
+.mouth #mouthO, .oh #mouthO { display: inline; }
+
+@keyframes sway { 50% { transform: rotate(6deg); } }
+@keyframes stepL { 0%,100% { transform: rotate(16deg); } 50% { transform: rotate(-16deg); } }
+@keyframes stepR { 0%,100% { transform: rotate(-16deg); } 50% { transform: rotate(16deg); } }
+@keyframes bob { 0%,50%,100% { transform: translateY(0); } 25%,75% { transform: translateY(-4%); } }
+@keyframes wave { 0%,100% { transform: rotate(0); } 25%,75% { transform: rotate(-28deg); } 50% { transform: rotate(6deg); } }
+@keyframes squash { 0% { transform: scale(1.18, .78); } 60% { transform: scale(.94, 1.06); } 100% { transform: scale(1, 1); } }
+@keyframes dance { 0%,100% { transform: rotate(0) translateY(0); } 25% { transform: rotate(-9deg) translateY(-8%); } 50% { transform: rotate(0) translateY(0); } 75% { transform: rotate(9deg) translateY(-8%); } }
+@keyframes breathe { 50% { transform: scale(1.012, .988); } }
+@keyframes float { 0% { opacity: 0; transform: translate(0, 0); } 30% { opacity: 1; } 100% { opacity: 0; transform: translate(14px, -26px); } }
+
+#z.walk #legL { animation: stepL .5s ease-in-out infinite; }
+#z.walk #legR { animation: stepR .5s ease-in-out infinite; }
+#z.walk #inner { animation: bob .5s ease-in-out infinite; }
+#z.wave #arm { animation: wave .7s ease-in-out 3; }
+#z.land #inner { animation: squash .35s ease-out; }
+#z.dance #inner { animation: dance .6s ease-in-out infinite; }
+#z.dance #arm { animation: wave .6s ease-in-out infinite; }
+#z.idle #inner { animation: breathe 3s ease-in-out infinite; }
+#z.air #legL { transform: rotate(14deg); }
+#z.air #legR { transform: rotate(-20deg); }
+#z.sleep #inner { animation: breathe 4s ease-in-out infinite; }
+
+#bubble {
+  position: absolute; bottom: 100%; left: 50%; transform: translate(-50%, -8px);
+  direction: rtl; white-space: nowrap; max-width: 320px;
+  font: 800 15px "Baloo Bhaijaan 2", Tahoma, "Segoe UI", sans-serif; line-height: 1.5;
+  color: #2a1a12; background: #fffaf0; border: 2.5px solid #2a1a12; border-radius: 14px; padding: 4px 12px 2px;
+  box-shadow: 3px 3px 0 rgba(42,26,18,.25); pointer-events: none;
+}
+#bubble::after { content: ""; position: absolute; top: 100%; left: 50%; margin-left: -7px; border: 7px solid transparent; border-top-color: #2a1a12; }
+#zzz { position: absolute; top: 4%; right: -6%; font: 800 20px "Baloo Bhaijaan 2", Tahoma, sans-serif; color: #2340a8; pointer-events: none; animation: float 2s ease-out infinite; }
+#zzz span { font-size: .8em; }

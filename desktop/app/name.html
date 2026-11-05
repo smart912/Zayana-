@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>زيانه</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+Bhaijaan+2:wght@600;800&display=swap">
+<style>
+  body { margin: 0; background: #fffaf0; color: #2a1a12; font: 600 16px "Baloo Bhaijaan 2", Tahoma, sans-serif; }
+  form { display: flex; flex-direction: column; gap: 12px; padding: 20px; }
+  h1 { margin: 0; font-size: 22px; font-weight: 800; color: #c8102e; }
+  input { font: 700 20px "Baloo Bhaijaan 2", Tahoma, sans-serif; padding: 6px 12px; border: 2.5px solid #2a1a12; border-radius: 12px; }
+  input:focus-visible { outline: 3px solid #0f8a43; outline-offset: 2px; }
+  button { font: 800 18px "Baloo Bhaijaan 2", Tahoma, sans-serif; padding: 6px; border: 2.5px solid #2a1a12; border-radius: 999px; background: #c8102e; color: #fff; cursor: pointer; }
+</style>
+</head>
+<body>
+<form id="f">
+  <h1>🧕 وش اسمك؟</h1>
+  <label for="n">زيانه بتناديك فيه</label>
+  <input id="n" maxlength="24" autocomplete="off" placeholder="مثلاً: نوف" autofocus>
+  <button type="submit">تمام</button>
+</form>
+<script src="name.js"></script>
+</body>
+</html>
