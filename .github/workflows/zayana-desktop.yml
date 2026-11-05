@@ -23,17 +23,29 @@ jobs:
           node-version: 22
       - run: npm install --no-audit --no-fund
       - run: npx electron-builder --win --publish never
+      - name: Keep the installer as a download on this run
+        uses: actions/upload-artifact@v4
+        with:
+          name: Zayana-Setup
+          path: desktop/dist/Zayana-Setup.exe
       - name: Read version
         id: v
         shell: bash
         run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
-      - uses: softprops/action-gh-release@v2
-        with:
-          tag_name: zayana-desktop-v${{ steps.v.outputs.version }}
-          name: Zayana Desktop ${{ steps.v.outputs.version }}
-          target_commitish: ${{ github.sha }}
-          make_latest: true
-          body: |
-            زيانه على سطح المكتب 🧕 نزّل Zayana-Setup.exe وافتحه.
-            Based on Khalfan by Ahmed Al Araimi — https://github.com/Ahmed-Al-Araimi/khalfan
-          files: desktop/dist/Zayana-Setup.exe
+      - name: Create or update the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: zayana-desktop-v${{ steps.v.outputs.version }}
+        run: |
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --target "$GITHUB_SHA" --latest \
+              --title "Zayana Desktop ${{ steps.v.outputs.version }}" \
+              --notes "زيانه على سطح المكتب 🧕 نزّل Zayana-Setup.exe وافتحه.
+          Based on Khalfan by Ahmed Al Araimi — https://github.com/Ahmed-Al-Araimi/khalfan"
+          fi
+          for i in 1 2 3 4 5; do
+            if gh release upload "$TAG" dist/Zayana-Setup.exe --clobber; then echo "uploaded"; exit 0; fi
+            echo "upload failed (try $i), waiting..."; sleep $((i * 15))
+          done
+          exit 1
