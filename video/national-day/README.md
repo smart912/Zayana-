@@ -38,3 +38,13 @@ node render.js out.mp4         # يحتاج Playwright و ffmpeg
 python3 build_album.py                       # يبني album.html من album.src.html ومن الأجزاء المشتركة في reel.html
 node render.js out.mp4 --page album.html --audio none
 ```
+
+---
+
+# ألبوم الولايات 🇴🇲 (٧٣ ثانية): ١١ محافظة · ٦٣ ولاية
+
+القائمة مأخوذة من نظام المحافظات (المرسوم السلطاني ٣٦/٢٠٢٢)، وفيها **الجبل الأخضر** في الداخلية و**سناو** في شمال الشرقية.
+كل محافظة لها صفحة في الألبوم، فيها صورة من المنطقة تتلوّن، والولايات تطلع مرقّمة وحدة وحدة.
+
+- `zayana-wilayat-silent.mp4`: بدون صوت، عشان تضيف الأغنية من إنستغرام وتبدأها من **0:52.7**، وبكذا الختام (الثانية 67.85) ينزل على الضربة اللي عند **2:00.5**
+- القائمة في `wilayat.src.html` داخل `GOVS`. لو عدّلتها، شغّل `python3 build_album.py` ثم `node render.js out.mp4 --page wilayat.html --audio none`
