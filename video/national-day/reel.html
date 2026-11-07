@@ -1,0 +1,658 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>Zayana National Day Reel</title>
+<style>
+  @font-face { font-family: "Lalezar"; src: url("fonts/Lalezar.ttf"); }
+  @font-face { font-family: "Cairo"; font-weight: 900; src: url("fonts/Cairo-Black.ttf"); }
+  @font-face { font-family: "Reem"; font-weight: 700; src: url("fonts/ReemKufi-Bold.ttf"); }
+  html, body { margin: 0; background: #000; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c" width="1080" height="1920"></canvas>
+<script>
+// ============================================================
+//  زيانه · Oman National Day reel — 1080x1920, 15s, 120 BPM
+//  render(t) is stateless: every frame is a pure function of t.
+// ============================================================
+const W = 1080, H = 1920, DURATION = 15, FPS = 30;
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+
+// ---------- helpers ----------
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const lerp = (a, b, k) => a + (b - a) * k;
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const easeOut = k => 1 - Math.pow(1 - k, 3);
+const easeIn = k => k * k * k;
+const easeInOut = k => k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+const easeBack = k => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(k - 1, 3) + c1 * Math.pow(k - 1, 2); };
+function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let x = Math.imul(seed ^ seed >>> 15, 1 | seed); x = x + Math.imul(x ^ x >>> 7, 61 | x) ^ x; return ((x ^ x >>> 14) >>> 0) / 4294967296; }; }
+
+const RED = '#d8232f', GREEN = '#0f8a43', WHITE = '#ffffff', GOLD = '#f2c14e';
+
+// ---------- timeline ----------
+const BEAT = 0.5;
+const CUTS = [2.0, 5.0, 8.0];        // tricolor wipes
+const DROP = 8.0, FINALE = 11.5;
+const HITS = [0, .5, 1, 1.5, 2, 5, 8, 8.5, 9, 9.5, 10, 10.5, 11, 11.5, 12, 13, 14];
+
+function shakeAt(t) {
+  let a = 0;
+  for (const h of HITS) if (t >= h) a += (h === 0 || CUTS.includes(h) || h === DROP || h === FINALE ? 26 : 9) * Math.exp(-(t - h) * 11);
+  return { x: a * Math.sin(t * 91.7), y: a * Math.cos(t * 77.3) };
+}
+function flashAt(t) {
+  let a = 0;
+  for (const h of [0, .5, 1, 1.5, DROP, FINALE]) if (t >= h) a += .6 * Math.exp(-(t - h) * 20);
+  return clamp(a);
+}
+
+// ---------- text ----------
+function text(str, x, y, o = {}) {
+  const size = o.size || 100, font = o.font || 'Lalezar';
+  ctx.save();
+  ctx.translate(x, y);
+  if (o.scale) ctx.scale(o.scale, o.scale);
+  if (o.rot) ctx.rotate(o.rot);
+  ctx.font = `${o.weight || ''} ${size}px "${font}"`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.direction = 'rtl';
+  ctx.globalAlpha = o.alpha == null ? 1 : o.alpha;
+  if (o.reveal != null && o.reveal < 1) {          // wipe in from the right (RTL)
+    const w = ctx.measureText(str).width + size;
+    ctx.beginPath(); ctx.rect(w / 2 - w * o.reveal, -size * 1.5, w * o.reveal, size * 3); ctx.clip();
+  }
+  if (o.split) {                                    // chromatic split
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = 'rgba(216,35,47,.9)'; ctx.fillText(str, -o.split, 0);
+    ctx.fillStyle = 'rgba(15,180,80,.9)'; ctx.fillText(str, o.split, 0);
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  if (o.glow) { ctx.shadowColor = o.glow; ctx.shadowBlur = o.glowBlur || 40; }
+  if (o.stroke) { ctx.lineJoin = 'round'; ctx.lineWidth = o.strokeW || size * .12; ctx.strokeStyle = o.stroke; ctx.strokeText(str, 0, 0); }
+  ctx.shadowBlur = 0;
+  let fill = o.fill || WHITE;
+  if (fill === 'gold') {
+    const g = ctx.createLinearGradient(0, -size * .5, 0, size * .5);
+    g.addColorStop(0, '#fff3c4'); g.addColorStop(.45, '#f6c851'); g.addColorStop(1, '#c98a1a');
+    fill = g;
+  }
+  ctx.fillStyle = fill; ctx.fillText(str, 0, 0);
+  ctx.restore();
+}
+
+// ---------- Oman flag ----------
+function drawEmblem(c, s) {          // national emblem, simplified, white, centred at 0,0, ~s tall
+  c.save(); c.scale(s / 100, s / 100);
+  c.fillStyle = '#fff'; c.strokeStyle = '#fff'; c.lineCap = 'round'; c.lineJoin = 'round';
+  // two crossed curved swords
+  for (const d of [1, -1]) {
+    c.save(); c.scale(d, 1);
+    c.lineWidth = 7;
+    c.beginPath(); c.moveTo(-38, -40); c.quadraticCurveTo(-8, 0, 34, 38); c.stroke();
+    c.lineWidth = 4;
+    c.beginPath(); c.moveTo(-46, -34); c.lineTo(-30, -48); c.stroke();      // hilt guard
+    c.beginPath(); c.arc(-44, -50, 5, 0, Math.PI * 2); c.fill();          // pommel
+    c.restore();
+  }
+  // khanjar: handle, curved sheath
+  c.beginPath(); c.moveTo(-9, -48); c.lineTo(9, -48); c.lineTo(6, -22); c.lineTo(-6, -22); c.closePath(); c.fill();
+  c.beginPath(); c.ellipse(0, -52, 13, 6, 0, 0, Math.PI * 2); c.fill();
+  c.beginPath(); c.moveTo(-9, -20); c.lineTo(9, -20); c.quadraticCurveTo(14, 18, 34, 34);
+  c.quadraticCurveTo(38, 44, 28, 44); c.quadraticCurveTo(4, 30, -9, -20); c.fill();
+  // belt
+  c.fillRect(-46, -16, 92, 9);
+  c.restore();
+}
+const flagCanvas = document.createElement('canvas');
+flagCanvas.width = 1200; flagCanvas.height = 600;
+(function paintFlag() {
+  const c = flagCanvas.getContext('2d'), fw = 1200, fh = 600, band = fh * .42;
+  c.fillStyle = WHITE; c.fillRect(0, 0, fw, fh / 3);
+  c.fillStyle = RED; c.fillRect(0, fh / 3, fw, fh / 3);
+  c.fillStyle = GREEN; c.fillRect(0, fh * 2 / 3, fw, fh / 3);
+  c.fillStyle = RED; c.fillRect(0, 0, band, fh);
+  c.save(); c.translate(band / 2, fh * .17); drawEmblem(c, fh * .26); c.restore();
+})();
+
+// waving flag: vertical slices with travelling sine + shading
+function wavingFlag(x, y, w, h, t, amp = .06, opts = {}) {
+  const slices = Math.ceil(w / 4), sw = w / slices;
+  for (let i = 0; i < slices; i++) {
+    const k = i / slices;
+    const ph = k * 7 - t * (opts.speed || 6);
+    const off = Math.sin(ph) * amp * h * (0.25 + k);
+    const shade = Math.cos(ph) * (0.25 + k * .5);
+    ctx.drawImage(flagCanvas, k * 1200, 0, 1200 / slices + 1, 600, x + i * sw, y + off, sw + 1, h);
+    ctx.fillStyle = shade > 0 ? `rgba(255,255,255,${shade * .16})` : `rgba(0,0,0,${-shade * .28})`;
+    ctx.fillRect(x + i * sw, y + off, sw + 1, h);
+  }
+}
+
+// ---------- Zayana (from zayana-wave.svg, split into body + waving arm) ----------
+const DEFS = `<defs>
+<linearGradient id="scarf" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1fa155"/><stop offset="1" stop-color="#0f7a3c"/></linearGradient>
+<linearGradient id="silver" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eef1f3"/><stop offset="1" stop-color="#9aa5ad"/></linearGradient>
+<pattern id="paisley" width="34" height="34" patternUnits="userSpaceOnUse"><rect width="34" height="34" fill="#d8232f"/>
+<path d="M9 22 C3 16 6 6 13 7 C19 8 18 16 13 17 C15 20 13 24 9 22Z" fill="#e3b341"/><path d="M11 12 q2 -2 3 1" stroke="#2f8f4a" stroke-width="1.6" fill="none"/>
+<path d="M24 30 c-4 -3 -2 -9 3 -8 c4 1 2 7 -3 8z" fill="#3f9a4f"/><path d="M26 9 c3 -3 7 -1 6 3 c-3 1 -5 0 -6 -3z" fill="#e3b341"/><circle cx="4" cy="31" r="1.6" fill="#e3b341"/></pattern>
+<pattern id="gold" width="12" height="12" patternUnits="userSpaceOnUse"><rect width="12" height="12" fill="#e0b04a"/><path d="M6 1 L11 6 L6 11 L1 6Z" fill="#c4473a"/><circle cx="6" cy="6" r="1.6" fill="#fff6dc"/></pattern>
+<pattern id="flowers" width="46" height="46" patternUnits="userSpaceOnUse">
+<g transform="translate(14 14)" fill="#f4f1e6"><circle r="3.2" cx="0" cy="-5"/><circle r="3.2" cx="5" cy="0"/><circle r="3.2" cx="0" cy="5"/><circle r="3.2" cx="-5" cy="0"/><circle r="2.4" fill="#e3b341"/></g>
+<g transform="translate(36 36) scale(.7)" fill="#f4f1e6"><circle r="3.2" cx="0" cy="-5"/><circle r="3.2" cx="5" cy="0"/><circle r="3.2" cx="0" cy="5"/><circle r="3.2" cx="-5" cy="0"/><circle r="2.4" fill="#e3b341"/></g></pattern>
+</defs>`;
+const BODY = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 620" width="800" height="1240">${DEFS}
+<path d="M140 130 Q118 230 148 270 L250 300 Q300 360 300 450 L330 455 Q330 330 268 240 Q262 150 240 112Z" fill="url(#scarf)"/>
+<path d="M140 130 Q118 230 148 270 L250 300 Q300 360 300 450 L330 455 Q330 330 268 240 Q262 150 240 112Z" fill="url(#flowers)"/>
+<g stroke-width="5" stroke-linecap="round"><path d="M300 450 l-6 46" stroke="#e3b341"/><path d="M306 451 l-2 50" stroke="#c0392b"/><path d="M312 452 l2 46" stroke="#2d4fb0"/><path d="M318 453 l6 44" stroke="#f0e6d2"/><path d="M324 454 l10 40" stroke="#16a085"/><path d="M329 455 l14 34" stroke="#e67e22"/><path d="M303 450 l-12 40" stroke="#8e44ad"/></g>
+<path d="M160 470 L156 560 L196 560 L198 480 L202 480 L204 560 L244 560 L240 470Z" fill="#17924a"/>
+<rect x="155" y="538" width="42" height="22" fill="url(#gold)"/><rect x="203" y="538" width="42" height="22" fill="url(#gold)"/>
+<path d="M150 560 h50 q4 22 -20 22 h-12 q-22 0 -18 -22z" fill="url(#silver)" stroke="#8a959c"/>
+<path d="M200 560 h50 q4 22 -18 22 h-12 q-24 0 -20 -22z" fill="url(#silver)" stroke="#8a959c"/>
+<path d="M160 250 Q145 360 128 470 L272 470 Q255 360 240 250 Q200 236 160 250Z" fill="url(#paisley)"/>
+<path d="M165 258 Q152 360 140 452" stroke="#f4f1e6" stroke-width="5" fill="none" stroke-dasharray="4 2"/>
+<path d="M235 258 Q248 360 260 452" stroke="#f4f1e6" stroke-width="5" fill="none" stroke-dasharray="4 2"/>
+<path d="M178 246 L222 246 L218 330 L200 360 L182 330Z" fill="url(#gold)" stroke="#17924a" stroke-width="5" stroke-linejoin="round"/>
+<path d="M200 252 V350" stroke="#f4f1e6" stroke-width="3" stroke-dasharray="3 2"/>
+<path d="M131 448 L269 448 L272 466 L128 466Z" fill="url(#gold)"/><path d="M128 466 L272 466 L273 482 L127 482Z" fill="#2340a8"/>
+<path d="M162 256 Q130 300 128 400 L152 404 Q154 330 172 290Z" fill="url(#paisley)"/>
+<rect x="126" y="388" width="28" height="18" rx="3" fill="url(#gold)" transform="rotate(3 140 397)"/>
+<circle cx="141" cy="418" r="13" fill="#e9b892"/><rect x="129" y="403" width="24" height="5" rx="2" fill="#e3b341"/>
+<rect x="186" y="220" width="28" height="30" fill="#e9b892"/>
+<path d="M182 232 Q200 246 218 232 L220 240 Q200 258 180 240Z" fill="#e3b341" stroke="#b8862a"/>
+<g fill="#e3b341" stroke="#b8862a" stroke-width=".8"><circle cx="188" cy="250" r="3"/><circle cx="196" cy="254" r="3"/><circle cx="204" cy="254" r="3"/><circle cx="212" cy="250" r="3"/></g>
+<ellipse cx="200" cy="170" rx="56" ry="62" fill="#f2c7a2"/>
+<path d="M146 165 Q144 112 200 106 Q256 112 254 165 Q248 132 224 128 Q206 126 200 116 Q194 126 176 128 Q152 132 146 165Z" fill="#3a2418"/>
+<path d="M146 160 Q140 200 152 222 L158 210 Q150 190 152 160Z" fill="#3a2418"/><path d="M254 160 Q260 200 248 222 L242 210 Q250 190 248 160Z" fill="#3a2418"/>
+<path d="M136 200 Q128 96 200 86 Q272 96 264 200 L256 200 Q260 112 200 102 Q140 112 144 200Z" fill="url(#scarf)"/>
+<path d="M142 200 Q138 108 200 98 Q262 108 258 200" stroke="url(#gold)" stroke-width="8" fill="none"/>
+<path d="M146 198 Q143 114 200 106 Q257 114 254 198" stroke="#f4f1e6" stroke-width="2" fill="none" stroke-dasharray="3 3"/>
+<path d="M200 106 V138" stroke="#e3b341" stroke-width="2"/><circle cx="200" cy="120" r="2.6" fill="#e3b341"/>
+<path d="M200 136 l7 8 l-7 10 l-7 -10z" fill="#e3b341" stroke="#b8862a"/><circle cx="200" cy="145" r="2.2" fill="#c0392b"/>
+<ellipse cx="178" cy="176" rx="11" ry="13" fill="#fff"/><ellipse cx="222" cy="176" rx="11" ry="13" fill="#fff"/>
+<circle cx="179" cy="179" r="8" fill="#4a2c1a"/><circle cx="223" cy="179" r="8" fill="#4a2c1a"/>
+<circle cx="182" cy="175" r="2.6" fill="#fff"/><circle cx="226" cy="175" r="2.6" fill="#fff"/>
+<path d="M166 170 Q178 161 190 170" stroke="#1a0f0a" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+<path d="M210 170 Q222 161 234 170" stroke="#1a0f0a" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+<path d="M168 156 Q178 151 190 155" stroke="#3a2418" stroke-width="3" fill="none" stroke-linecap="round"/>
+<path d="M210 155 Q222 151 232 156" stroke="#3a2418" stroke-width="3" fill="none" stroke-linecap="round"/>
+<ellipse cx="164" cy="198" rx="10" ry="6" fill="#f08a80" opacity=".5"/><ellipse cx="236" cy="198" rx="10" ry="6" fill="#f08a80" opacity=".5"/>
+<path d="M198 188 Q202 196 197 197" stroke="#c99674" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+<path d="M184 206 Q200 224 216 206 Q200 214 184 206Z" fill="#b0414c" stroke="#b0414c" stroke-width="3" stroke-linejoin="round"/>
+</svg>`;
+const ARM = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 620" width="800" height="1240">${DEFS}
+<path d="M236 252 Q272 286 266 346 Q250 352 238 340 Q244 304 226 284Z" fill="url(#paisley)"/>
+<path d="M240 340 Q262 356 268 340 L286 302 L260 290 L246 318Z" fill="url(#paisley)"/>
+<rect x="259" y="293" width="26" height="14" rx="3" fill="url(#gold)" transform="rotate(-62 272 300)"/>
+<ellipse cx="276" cy="284" rx="12" ry="14" fill="#e9b892"/>
+<path d="M268 276 q8 -6 16 2" stroke="#c99674" stroke-width="2" fill="none"/>
+</svg>`;
+function svgImg(s) { const i = new Image(); i.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s); return i; }
+const bodyImg = svgImg(BODY), armImg = svgImg(ARM);
+
+// x,y = feet position on canvas; s = px per svg unit
+function zayana(x, y, s, t, alpha = 1) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  const bounce = Math.abs(Math.sin(t * Math.PI * 2)) * 10 * s / 2;   // hops on every beat
+  ctx.translate(x - 200 * s, y - 584 * s - bounce);
+  ctx.scale(s, s);
+  // shadow
+  ctx.fillStyle = 'rgba(0,0,0,.35)';
+  ctx.beginPath(); ctx.ellipse(200, 588 + bounce / s, 95 - bounce / s, 12, 0, 0, Math.PI * 2); ctx.fill();
+  // arm behind? no: body first, then arm on top
+  ctx.drawImage(bodyImg, 0, 0, 400, 620);
+  // blink
+  const bl = (t % 3.1);
+  if (bl > 2.95) {
+    ctx.fillStyle = '#f2c7a2';
+    for (const ex of [178, 222]) { ctx.beginPath(); ctx.ellipse(ex, 176, 13, 15, 0, 0, Math.PI * 2); ctx.fill(); }
+    ctx.strokeStyle = '#1a0f0a'; ctx.lineWidth = 2.8; ctx.lineCap = 'round';
+    for (const ex of [178, 222]) { ctx.beginPath(); ctx.moveTo(ex - 12, 178); ctx.quadraticCurveTo(ex, 184, ex + 12, 178); ctx.stroke(); }
+  }
+  // waving arm + mini flag
+  const ang = (-14 + Math.sin(t * Math.PI * 4) * 16) * Math.PI / 180;
+  ctx.translate(250, 345); ctx.rotate(ang); ctx.translate(-250, -345);
+  // pole
+  ctx.strokeStyle = '#d9c08a'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(272, 312); ctx.lineTo(290, 120); ctx.stroke();
+  ctx.fillStyle = GOLD; ctx.beginPath(); ctx.arc(290, 116, 6, 0, Math.PI * 2); ctx.fill();
+  ctx.save(); ctx.translate(290, 124); ctx.rotate(5 * Math.PI / 180);
+  const fw = 120, fh = 64, sl = 40;
+  for (let i = 0; i < sl; i++) {
+    const k = i / sl, ph = k * 6 - t * 10, off = Math.sin(ph) * 6 * k;
+    ctx.drawImage(flagCanvas, k * 1200, 0, 1200 / sl + 1, 600, i * fw / sl, off, fw / sl + .6, fh);
+    const sh = Math.cos(ph) * k;
+    ctx.fillStyle = sh > 0 ? `rgba(255,255,255,${sh * .15})` : `rgba(0,0,0,${-sh * .25})`;
+    ctx.fillRect(i * fw / sl, off, fw / sl + .6, fh);
+  }
+  ctx.restore();
+  ctx.drawImage(armImg, 0, 0, 400, 620);
+  ctx.restore();
+}
+
+// ---------- particles (analytic) ----------
+const R = rng(2011);
+const CONFETTI = Array.from({ length: 170 }, () => ({
+  x: R() * W, d: R() * 2.5, v: 380 + R() * 420, sw: 30 + R() * 70, f: 1 + R() * 3,
+  c: [RED, WHITE, GREEN, GOLD][Math.floor(R() * 4)], w: 14 + R() * 14, h: 8 + R() * 10, r: R() * 6
+}));
+function confetti(u) {
+  for (const p of CONFETTI) {
+    const tt = u - p.d * .4; if (tt < 0) continue;
+    const y = -60 + tt * p.v; if (y > H + 60) continue;
+    const x = p.x + Math.sin(tt * p.f + p.r) * p.sw;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(tt * p.f * 2 + p.r);
+    ctx.scale(Math.cos(tt * p.f * 3 + p.r), 1);
+    ctx.fillStyle = p.c; ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+    ctx.restore();
+  }
+}
+const PETALS = Array.from({ length: 40 }, () => ({ x: R() * W * 1.3, y: R() * H, v: 60 + R() * 90, r: R() * 6, s: 10 + R() * 12 }));
+function petals(u) {
+  for (const p of PETALS) {
+    const x = (p.x - u * 140 + W * 1.3) % (W * 1.3) - 60, y = (p.y + u * p.v) % H;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(u * 2 + p.r);
+    ctx.fillStyle = 'rgba(244,120,160,.85)';
+    ctx.beginPath(); ctx.ellipse(0, 0, p.s, p.s * .55, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+}
+// fireworks: list of bursts
+const BURSTS = [];
+(function () {
+  const r = rng(77);
+  const times = [8.05, 8.55, 9.05, 9.55, 10.05, 10.55, 11.05, 11.55, 11.8, 12.05, 12.55, 12.8, 13.05, 13.55, 13.8, 14.05, 14.3, 14.55];
+  const cols = [[RED, '#ff6b6b'], [WHITE, '#fff6dc'], [GREEN, '#38e07b'], [GOLD, '#ffe08a']];
+  times.forEach((t0, i) => {
+    const c = cols[i % 4];
+    BURSTS.push({ t0, x: 140 + r() * 800, y: 260 + r() * 700, n: 70 + Math.floor(r() * 40), sp: 380 + r() * 260, c, seed: i * 13 + 5 });
+  });
+})();
+function fireworks(t, onlyAfter = 0) {
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for (const b of BURSTS) {
+    if (b.t0 < onlyAfter) continue;
+    const rise = 0.35, ts = b.t0 - rise;
+    if (t < ts) continue;
+    if (t < b.t0) {                       // rocket trail
+      const k = (t - ts) / rise;
+      const y = lerp(H + 40, b.y, easeOut(k));
+      ctx.fillStyle = 'rgba(255,230,180,.9)';
+      ctx.beginPath(); ctx.arc(b.x, y, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,200,120,.25)'; ctx.fillRect(b.x - 2, y, 4, 120);
+      continue;
+    }
+    const dt = t - b.t0; if (dt > 1.8) continue;
+    const r = rng(b.seed), fade = Math.pow(1 - dt / 1.8, 1.6);
+    if (dt < .12) {                       // core flash
+      const g = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, 260);
+      g.addColorStop(0, `rgba(255,255,255,${.7 * (1 - dt / .12)})`); g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = g; ctx.fillRect(b.x - 260, b.y - 260, 520, 520);
+    }
+    for (let i = 0; i < b.n; i++) {
+      const a = (i / b.n) * Math.PI * 2 + r() * .1, sp = b.sp * (.6 + r() * .4);
+      const drag = (1 - Math.exp(-dt * 2.2)) / 2.2;
+      const px = b.x + Math.cos(a) * sp * drag, py = b.y + Math.sin(a) * sp * drag + 160 * dt * dt;
+      const tw = r() > .5 ? (Math.sin(dt * 40 + i) > 0 ? 1 : .4) : 1;
+      ctx.fillStyle = (i % 3 ? b.c[0] : b.c[1]);
+      ctx.globalAlpha = fade * tw;
+      ctx.beginPath(); ctx.arc(px, py, 4.5 * (1 - dt / 2.2) + 1, 0, Math.PI * 2); ctx.fill();
+      // tail
+      ctx.globalAlpha = fade * .35;
+      const px2 = b.x + Math.cos(a) * sp * drag * .82, py2 = b.y + Math.sin(a) * sp * drag * .82 + 160 * dt * dt * .8;
+      ctx.strokeStyle = b.c[0]; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px2, py2); ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+// ---------- landscapes ----------
+function ridge(seed, baseY, amp, rough) {
+  const r = rng(seed), pts = []; let y = 0, v = 0;
+  for (let x = -200; x <= W + 200; x += 24) {
+    v += (r() - .5) * rough; v *= .9; y += v; y *= .97;
+    pts.push([x, baseY + y * amp]);
+  }
+  return pts;
+}
+const RIDGES = [ridge(3, 1120, 4, 9), ridge(9, 1260, 5, 10), ridge(21, 1440, 5.5, 12)];
+function drawRidge(pts, color, dx, extraTop) {
+  ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(pts[0][0] + dx, H + 100);
+  for (const [x, y] of pts) ctx.lineTo(x + dx, y - (extraTop ? extraTop(x) : 0));
+  ctx.lineTo(pts[pts.length - 1][0] + dx, H + 100); ctx.closePath(); ctx.fill();
+}
+const STARS = Array.from({ length: 140 }, () => ({ x: R() * W, y: R() * 1100, r: R() * 2.2 + .4, p: R() * 6 }));
+function stars(alpha, t) {
+  for (const s of STARS) {
+    ctx.globalAlpha = alpha * (.5 + .5 * Math.sin(t * 3 + s.p));
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+function birds(u, x0, y0, n) {
+  ctx.strokeStyle = 'rgba(20,10,20,.8)'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+  for (let i = 0; i < n; i++) {
+    const x = x0 + u * 160 + i * 70 - (i % 2) * 30, y = y0 + (i % 3) * 40 + Math.sin(u * 2 + i) * 10;
+    const f = Math.sin(u * 14 + i) * 12;
+    ctx.beginPath(); ctx.moveTo(x - 22, y - f); ctx.quadraticCurveTo(x - 8, y - 8, x, y); ctx.quadraticCurveTo(x + 8, y - 8, x + 22, y - f); ctx.stroke();
+  }
+}
+
+// ---------- SCENE 1: beat-punch intro (0–2s) ----------
+function scene1(t) {
+  const beat = Math.floor(t / BEAT), bt = t - beat * BEAT;
+  const g = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, H * .7);
+  const hue = [RED, GREEN, RED, '#7a0f18'][beat] || RED;
+  g.addColorStop(0, hue); g.addColorStop(.55, '#1a0508'); g.addColorStop(1, '#000');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  // speed streaks
+  ctx.save(); ctx.globalAlpha = .18; ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
+  const r = rng(beat + 4);
+  for (let i = 0; i < 40; i++) {
+    const a = r() * Math.PI * 2, d0 = 200 + r() * 300 + bt * 2400, d1 = d0 + 120 + r() * 200;
+    ctx.beginPath(); ctx.moveTo(W / 2 + Math.cos(a) * d0, H / 2 + Math.sin(a) * d0); ctx.lineTo(W / 2 + Math.cos(a) * d1, H / 2 + Math.sin(a) * d1); ctx.stroke();
+  }
+  ctx.restore();
+  const words = [
+    { s: '٢٠', size: 520, fill: WHITE },
+    { s: 'نوفمبر', size: 250, fill: WHITE },
+    { s: 'نبض القلب', size: 190, fill: 'gold' },
+    { s: 'عُمان', size: 330, fill: WHITE },
+  ];
+  const w = words[beat]; if (!w) return;
+  const k = clamp(bt / .22);
+  const sc = lerp(1.7, 1, easeOut(k)) + bt * .12;
+  text(w.s, W / 2, H / 2 - 20, { size: w.size, scale: sc, fill: w.fill, split: lerp(28, 6, k), glow: 'rgba(255,255,255,.6)', glowBlur: 50, stroke: 'rgba(0,0,0,.35)' });
+  // small top tag
+  text('اليوم الوطني العماني', W / 2, 420, { size: 54, font: 'Cairo', weight: 900, alpha: .85, fill: '#ffd9d9' });
+}
+
+// ---------- SCENE 2: Jebel Akhdar dawn (2–5s) ----------
+function scene2(u) {
+  const zoom = 1 + u * .045;
+  ctx.save(); ctx.translate(W / 2, H * .6); ctx.scale(zoom, zoom); ctx.translate(-W / 2, -H * .6);
+  const sky = ctx.createLinearGradient(0, 0, 0, 1300);
+  sky.addColorStop(0, '#0b1b3f'); sky.addColorStop(.5, '#5b2a63'); sky.addColorStop(.82, '#ef6f3c'); sky.addColorStop(1, '#ffc46b');
+  ctx.fillStyle = sky; ctx.fillRect(-100, -100, W + 200, H + 200);
+  stars(clamp(1 - u / 2.2) * .9, u);
+  // sun
+  const sy = lerp(1230, 1010, easeOut(u / 3));
+  const sg = ctx.createRadialGradient(W / 2, sy, 0, W / 2, sy, 520);
+  sg.addColorStop(0, 'rgba(255,240,190,1)'); sg.addColorStop(.18, 'rgba(255,200,110,.9)'); sg.addColorStop(1, 'rgba(255,140,60,0)');
+  ctx.fillStyle = sg; ctx.fillRect(0, sy - 520, W, 1040);
+  ctx.fillStyle = '#fff2c9'; ctx.beginPath(); ctx.arc(W / 2, sy, 120, 0, Math.PI * 2); ctx.fill();
+  // god rays
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.translate(W / 2, sy);
+  for (let i = 0; i < 14; i++) {
+    ctx.rotate(Math.PI * 2 / 14 + u * .02);
+    ctx.fillStyle = 'rgba(255,210,140,.05)';
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-60, -1400); ctx.lineTo(60, -1400); ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+  birds(u, 120, 760, 5);
+  drawRidge(RIDGES[0], '#8a4563', -u * 20);
+  drawRidge(RIDGES[1], '#4f2342', -u * 45);
+  // terraces on the front ridge
+  drawRidge(RIDGES[2], '#24102a', -u * 80);
+  ctx.strokeStyle = 'rgba(80,140,70,.55)'; ctx.lineWidth = 6;
+  for (let i = 0; i < 6; i++) {
+    ctx.beginPath();
+    for (let x = 0; x <= W; x += 30) { const y = 1540 + i * 55 + Math.sin(x / 120 + i) * 18; x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); }
+    ctx.stroke();
+  }
+  ctx.restore();
+  petals(u);
+  // text
+  const r1 = easeOut(prog(u, .25, .85));
+  text('من قمم', W / 2, 520, { size: 110, reveal: r1, fill: WHITE, glow: 'rgba(0,0,0,.6)', glowBlur: 30 });
+  text('الجبل الأخضر', W / 2, 660, { size: 150, reveal: easeOut(prog(u, .55, 1.15)), fill: 'gold', glow: 'rgba(0,0,0,.6)', glowBlur: 30, stroke: 'rgba(60,20,40,.6)' });
+  text('ورد وجبال وعزّ ما يميل', W / 2, 800, { size: 62, font: 'Cairo', weight: 900, alpha: easeOut(prog(u, 1.4, 1.9)), fill: '#ffe6ef' });
+}
+
+// ---------- SCENE 3: Muttrah coast at sunset (5–8s) ----------
+function fort(x, y, s) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+  ctx.fillStyle = '#e1b98a';
+  ctx.fillRect(-150, -60, 300, 60);                 // wall
+  for (let i = -150; i < 150; i += 22) ctx.fillRect(i, -74, 12, 16);  // crenels
+  for (const tx of [-170, 170]) {                   // round towers
+    ctx.fillRect(tx - 40, -140, 80, 140);
+    for (let i = -40; i < 40; i += 20) ctx.fillRect(tx + i, -156, 12, 18);
+  }
+  ctx.fillRect(-36, -150, 72, 90);                  // keep
+  for (let i = -36; i < 36; i += 18) ctx.fillRect(i, -164, 10, 16);
+  ctx.fillStyle = 'rgba(120,70,40,.55)';
+  ctx.fillRect(-12, -120, 24, 40); ctx.fillRect(-180, -110, 12, 26); ctx.fillRect(165, -110, 12, 26);
+  ctx.restore();
+}
+function scene3(u) {
+  const zoom = 1.08 - u * .03;
+  ctx.save(); ctx.translate(W / 2, H / 2); ctx.scale(zoom, zoom); ctx.translate(-W / 2, -H / 2);
+  const sky = ctx.createLinearGradient(0, 0, 0, 1250);
+  sky.addColorStop(0, '#13234d'); sky.addColorStop(.55, '#3e6a9a'); sky.addColorStop(.85, '#f3a65c'); sky.addColorStop(1, '#ffd08a');
+  ctx.fillStyle = sky; ctx.fillRect(-100, -100, W + 200, H + 200);
+  // sun low on the sea
+  const sg = ctx.createRadialGradient(780, 1200, 0, 780, 1200, 420);
+  sg.addColorStop(0, 'rgba(255,236,180,1)'); sg.addColorStop(1, 'rgba(255,170,90,0)');
+  ctx.fillStyle = sg; ctx.fillRect(300, 780, 900, 840);
+  // rocky hills + fort
+  ctx.fillStyle = '#5a3a32';
+  ctx.beginPath(); ctx.moveTo(-100, 1250);
+  [[-100, 1080], [60, 1020], [130, 1000], [510, 1000], [600, 1060], [720, 1120], [900, 1180], [1180, 1200], [1180, 1250]].forEach(([x, y]) => ctx.lineTo(x - u * 25, y));
+  ctx.fill();
+  fort(320 - u * 25, 1004, .8);
+  ctx.save(); wavingFlag(320 - u * 25, 790, 90, 45, u * 1.2, .08); ctx.restore();
+  ctx.strokeStyle = '#3d220f'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(320 - u * 25, 790); ctx.lineTo(320 - u * 25, 875); ctx.stroke();
+  // sea
+  const sea = ctx.createLinearGradient(0, 1250, 0, H);
+  sea.addColorStop(0, '#2d6d8e'); sea.addColorStop(1, '#0a2238');
+  ctx.fillStyle = sea; ctx.fillRect(-100, 1250, W + 200, H);
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  const r = rng(5);
+  for (let i = 0; i < 70; i++) {
+    const y = 1260 + Math.pow(r(), 1.6) * 640, x = ((r() * W * 1.4 + u * (40 + (y - 1250) * .2)) % (W * 1.4)) - 150;
+    const len = 30 + (y - 1250) * .25;
+    const near = Math.abs(x - 780) < 260 ? .5 : .15;
+    ctx.fillStyle = `rgba(255,220,170,${near * (.5 + .5 * Math.sin(u * 4 + i))})`;
+    ctx.fillRect(x, y, len, 3 + (y - 1250) / 200);
+  }
+  ctx.restore();
+  // dhow sailing in
+  const dx = lerp(-200, 640, easeOut(u / 3));
+  ctx.save(); ctx.translate(dx, 1420 + Math.sin(u * 3) * 8); ctx.rotate(Math.sin(u * 2.4) * .04); ctx.scale(1.1, 1.1);
+  ctx.fillStyle = '#5b3018';
+  ctx.beginPath(); ctx.moveTo(-170, -10); ctx.quadraticCurveTo(-60, 44, 120, 30); ctx.lineTo(200, -46); ctx.lineTo(150, -18); ctx.lineTo(-150, -22); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#e3b341'; ctx.fillRect(-150, -26, 296, 7);
+  ctx.strokeStyle = '#3d220f'; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(10, -20); ctx.lineTo(0, -320); ctx.stroke();
+  ctx.fillStyle = '#fbefd8';
+  ctx.beginPath(); ctx.moveTo(-180, -150); ctx.lineTo(130, -350); ctx.quadraticCurveTo(100, -160, 40, -40); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = 'rgba(200,150,100,.25)';
+  ctx.beginPath(); ctx.moveTo(-180, -150); ctx.lineTo(40, -40); ctx.lineTo(20, -60); ctx.closePath(); ctx.fill();
+  wavingFlag(0, -360, 70, 35, u * 1.4, .1);
+  ctx.restore();
+  // foam at dhow
+  ctx.fillStyle = 'rgba(255,255,255,.5)';
+  ctx.beginPath(); ctx.ellipse(dx + 40, 1452, 220, 10, 0, 0, Math.PI * 2); ctx.fill();
+  birds(u, 520, 560, 4);
+  ctx.restore();
+  // text
+  text('لين موج', W / 2, 470, { size: 120, reveal: easeOut(prog(u, .15, .7)), glow: 'rgba(10,20,50,.7)', glowBlur: 30 });
+  text('بحر عُمان', W / 2, 620, { size: 170, reveal: easeOut(prog(u, .45, 1.05)), fill: 'gold', glow: 'rgba(10,20,50,.7)', glowBlur: 30, stroke: 'rgba(20,30,60,.5)' });
+  text('أرضي.. وفخري.. وهويتي', W / 2, 760, { size: 62, font: 'Cairo', weight: 900, alpha: easeOut(prog(u, 1.3, 1.8)), fill: '#e6f4ff' });
+}
+
+// ---------- SCENE 4: the DROP — flag + Zayana (8–11.5s) ----------
+function heart(x, y, s, c) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(s, s); ctx.fillStyle = c;
+  ctx.beginPath(); ctx.moveTo(0, 12); ctx.bezierCurveTo(-26, -6, -12, -28, 0, -12); ctx.bezierCurveTo(12, -28, 26, -6, 0, 12); ctx.fill();
+  ctx.restore();
+}
+function rays(t, c1, c2) {
+  ctx.fillStyle = c1; ctx.fillRect(0, 0, W, H);
+  ctx.save(); ctx.translate(W / 2, 760); ctx.rotate(t * .25);
+  for (let i = 0; i < 24; i++) {
+    ctx.rotate(Math.PI * 2 / 24);
+    ctx.fillStyle = i % 2 ? c2 : 'rgba(0,0,0,0)';
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-140, -2200); ctx.lineTo(140, -2200); ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+  const v = ctx.createRadialGradient(W / 2, 760, 200, W / 2, 900, 1300);
+  v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.7)');
+  ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
+}
+function scene4(u, t) {
+  rays(u, '#8f0d18', 'rgba(255,90,90,.18)');
+  fireworks(t, 7.9);
+  // flag: swoops in big, then waves
+  const k = easeBack(prog(u, 0, .45));
+  const fw = 960 * lerp(.4, 1, k), fh = fw / 2;
+  const pulse = 1 + Math.exp(-((u % BEAT)) * 10) * .025;
+  ctx.save(); ctx.translate(W / 2, 760); ctx.rotate(lerp(-.3, -.04, k)); ctx.scale(pulse, pulse);
+  ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 40;
+  ctx.fillStyle = '#000'; ctx.globalAlpha = .25; ctx.fillRect(-fw / 2 + 10, -fh / 2 + 30, fw, fh); ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+  wavingFlag(-fw / 2, -fh / 2, fw, fh, t, .07);
+  // gold pole
+  ctx.fillStyle = GOLD; ctx.fillRect(-fw / 2 - 18, -fh / 2 - 30, 14, fh + 380);
+  ctx.beginPath(); ctx.arc(-fw / 2 - 11, -fh / 2 - 38, 16, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  // floating hearts
+  const r = rng(99);
+  for (let i = 0; i < 14; i++) {
+    const x = r() * W, sp = 200 + r() * 200, d = r() * 1.5, s = 1.2 + r() * 1.6;
+    const y = H + 60 - (u - d) * sp; if (u < d || y < -60) continue;
+    heart(x + Math.sin(u * 3 + i) * 30, y, s, [RED, WHITE, GREEN][i % 3]);
+  }
+  confetti(u);
+  // headline
+  const hk = easeBack(prog(u, .25, .6));
+  text('عُمان', W / 2, 300, { size: 210, scale: lerp(.2, 1, hk), alpha: clamp(hk * 2), fill: WHITE, stroke: '#5a0710', strokeW: 22, glow: 'rgba(255,255,255,.5)', glowBlur: 40, split: 5 });
+  text('في القلب', W / 2, 1130, { size: 120, scale: lerp(.2, 1, easeBack(prog(u, .5, .85))), alpha: clamp(prog(u, .5, .7) * 2), fill: 'gold', stroke: '#4a0710', strokeW: 16 });
+  heart(W / 2 + 270, 1120, 2.4 + Math.exp(-((u % BEAT)) * 8) * .9, RED);
+  // Zayana jumps in
+  const zk = easeBack(prog(u, .4, .9));
+  zayana(W / 2, lerp(H + 900, 1880, zk), 1.25, t);
+}
+
+// ---------- SCENE 5: finale — fireworks over Muscat (11.5–15s) ----------
+function skyline(y) {
+  ctx.fillStyle = '#0a0716';
+  ctx.fillRect(0, y, W, H - y);
+  const r = rng(31);
+  let x = -20;
+  while (x < W + 40) {
+    const w = 60 + r() * 90, h = 60 + r() * 140;
+    ctx.fillRect(x, y - h, w, h + 2);
+    if (r() > .55) { ctx.beginPath(); ctx.arc(x + w / 2, y - h, w * .35, Math.PI, 0); ctx.fill(); }   // dome
+    if (r() > .7) { ctx.fillRect(x + w * .8, y - h - 140, 14, 140); ctx.beginPath(); ctx.moveTo(x + w * .8 - 4, y - h - 140); ctx.lineTo(x + w * .8 + 7, y - h - 175); ctx.lineTo(x + w * .8 + 18, y - h - 140); ctx.fill(); } // minaret
+    // lit windows
+    ctx.fillStyle = 'rgba(255,200,120,.55)';
+    for (let i = 0; i < 4; i++) if (r() > .4) ctx.fillRect(x + 10 + r() * (w - 24), y - h + 20 + r() * (h - 30), 8, 12);
+    ctx.fillStyle = '#0a0716';
+    x += w + r() * 10;
+  }
+}
+function scene5(u, t) {
+  const sky = ctx.createLinearGradient(0, 0, 0, H);
+  sky.addColorStop(0, '#04050f'); sky.addColorStop(.6, '#1d0f33'); sky.addColorStop(1, '#3a1430');
+  ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
+  stars(.7, t);
+  fireworks(t, 11.0);
+  skyline(1560);
+  // glow on horizon
+  const hg = ctx.createLinearGradient(0, 1300, 0, 1600);
+  hg.addColorStop(0, 'rgba(216,35,47,0)'); hg.addColorStop(1, 'rgba(216,35,47,.28)');
+  ctx.fillStyle = hg; ctx.fillRect(0, 1300, W, 300);
+  // tricolor ribbon behind the title
+  const rk = easeOut(prog(u, 0, .5));
+  ctx.save(); ctx.translate(W / 2, 640); ctx.rotate(-.06);
+  [[WHITE, -60], [RED, 0], [GREEN, 60]].forEach(([c, oy], i) => {
+    ctx.fillStyle = c; ctx.globalAlpha = .9;
+    const len = W * 1.3 * easeOut(prog(u, i * .08, .5 + i * .08));
+    ctx.fillRect(-len / 2, oy - 30, len, 60);
+  });
+  ctx.restore();
+  const p1 = easeBack(prog(u, .1, .45)), p2 = easeBack(prog(u, .3, .65));
+  text('كل عام', W / 2, 480, { size: 150, scale: lerp(.3, 1, p1), alpha: clamp(p1 * 2), fill: WHITE, stroke: '#1a0b22', strokeW: 18, glow: 'rgba(255,255,255,.45)' });
+  text('وعُمان بخير', W / 2, 660, { size: 190, scale: lerp(.3, 1, p2), alpha: clamp(p2 * 2), fill: 'gold', stroke: '#2a0b12', strokeW: 22, glow: 'rgba(242,193,78,.6)', glowBlur: 50 });
+  // date pill
+  const pk = easeOut(prog(u, .9, 1.3));
+  ctx.save(); ctx.globalAlpha = pk; ctx.translate(W / 2, 860 + (1 - pk) * 40);
+  ctx.fillStyle = RED; ctx.beginPath(); ctx.roundRect(-300, -52, 600, 104, 52); ctx.fill();
+  ctx.strokeStyle = GOLD; ctx.lineWidth = 4; ctx.stroke();
+  ctx.restore();
+  text('اليوم الوطني · ٢٠ نوفمبر', W / 2, 862 + (1 - pk) * 40, { size: 50, font: 'Cairo', weight: 900, alpha: pk });
+  text('من زيانه.. بكل حب', W / 2, 980, { size: 54, font: 'Reem', weight: 700, alpha: easeOut(prog(u, 1.5, 2)), fill: '#ffd7a8' });
+  zayana(W / 2, 1880, 1.05, t);
+}
+
+// ---------- transitions ----------
+function tricolorWipe(t, tc) {
+  // a block of three diagonal stripes (white | red | green) slams across the screen;
+  // it fully covers the frame only for a couple of frames around the cut at tc.
+  const p = (t - (tc - .28)) / .56; if (p <= 0 || p >= 1) return;
+  const E = 1000, S = 2.3 * E, sw = S / 3;
+  const o = lerp(-E - S, E, easeInOut(p));
+  ctx.save(); ctx.translate(W / 2, H / 2); ctx.rotate(-.35);
+  [[GREEN, 0], [RED, 1], [WHITE, 2]].forEach(([c, i]) => {
+    ctx.fillStyle = c; ctx.fillRect(o + i * sw, -1400, sw + 1, 2800);
+  });
+  ctx.fillStyle = GOLD; ctx.fillRect(o - 12, -1400, 12, 2800); ctx.fillRect(o + S, -1400, 12, 2800);
+  ctx.restore();
+}
+
+// ---------- master render ----------
+function render(t) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  const sh = shakeAt(t);
+  ctx.save(); ctx.translate(sh.x, sh.y);
+  // punch zoom on hits
+  let pz = 1; for (const h of HITS) if (t >= h) pz += .035 * Math.exp(-(t - h) * 12);
+  ctx.translate(W / 2, H / 2); ctx.scale(pz, pz); ctx.translate(-W / 2, -H / 2);
+  if (t < 2) scene1(t);
+  else if (t < 5) scene2(t - 2);
+  else if (t < 8) scene3(t - 5);
+  else if (t < FINALE) scene4(t - 8, t);
+  else scene5(t - FINALE, t);
+  ctx.restore();
+  for (const c of CUTS) tricolorWipe(t, c);
+  // flash
+  const f = flashAt(t);
+  if (f > .01) { ctx.fillStyle = `rgba(255,255,255,${f})`; ctx.fillRect(0, 0, W, H); }
+  // film grain-ish vignette
+  const v = ctx.createRadialGradient(W / 2, H / 2, H * .35, W / 2, H / 2, H * .75);
+  v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.35)');
+  ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
+  // fade out the last 0.25s for a clean loop
+  const fo = prog(t, DURATION - .25, DURATION);
+  if (fo > 0) { ctx.fillStyle = `rgba(0,0,0,${fo})`; ctx.fillRect(0, 0, W, H); }
+}
+
+window.ready = (async () => {
+  await Promise.all([
+    document.fonts.load('100px "Lalezar"'),
+    document.fonts.load('900 100px "Cairo"'),
+    document.fonts.load('700 100px "Reem"'),
+    bodyImg.decode(), armImg.decode(),
+  ]);
+  return true;
+})();
+window.render = render;
+window.META = { W, H, DURATION, FPS };
+
+// preview mode: open the file in a browser to watch it play
+if (!navigator.webdriver) {
+  window.ready.then(() => {
+    const t0 = performance.now();
+    (function loop() { render(((performance.now() - t0) / 1000) % DURATION); requestAnimationFrame(loop); })();
+  });
+}
+</script>
+</body>
+</html>
