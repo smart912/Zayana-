@@ -1,125 +1,137 @@
-"""Convert the hand-drawn FLOOR PLAN (scale 1:100) into an AutoCAD DXF.
+"""Hand-drawn FLOOR PLAN (scale 1:100) traced into an AutoCAD DXF.
 
-Units: metres (1 drawing unit = 1 m). Origin = bottom-left corner of the plot wall.
-Dimensions were read from the room labels on the sketch (Majlis 6x4, Living 8x5,
-Kids 3x5, Master 3.5x5, Dining 4x3, Kitchen 4.5x5) and the rest scaled to match.
+Every wall, door, window and piece of furniture is placed at the exact position
+measured on the original sketch (pixel coordinates of the photo), then converted
+with ONE uniform scale so the plot is 26.00 m x 22.00 m.  Nothing is moved or
+re-arranged - the layout is the same as the drawing.
 
+Units: metres (1 drawing unit = 1 m).  Origin = bottom-left corner of the plot.
 Run:  python3 floor_plan.py   ->  floor_plan.dxf  (+ floor_plan_preview.png)
 """
 import math
+import random
 from pathlib import Path
 
 import ezdxf
 from ezdxf import units
 from ezdxf.enums import TextEntityAlignment
-from shapely.geometry import LineString, box, Polygon
+from shapely.geometry import LineString, Polygon, Point, box
 from shapely.ops import unary_union
 
 OUT = Path(__file__).with_name("floor_plan.dxf")
 
+# ------------------------------------------------------------------ sketch -> metres
+# plot wall on the photo: x 190..1210 px, y 245..1105 px  ->  26 m x 22 m
+PX0, PX1, PY0, PY1 = 190, 1210, 245, 1105
+PLOT_W, PLOT_H = 26.0, 22.0
+SX, SY = PLOT_W / (PX1 - PX0), PLOT_H / (PY1 - PY0)   # ~0.0255 m per pixel both ways
+
+
+def P(px, py):
+    """photo pixel -> drawing metres (y flipped)."""
+    return ((px - PX0) * SX, (PY1 - py) * SY)
+
+
+def L(n_px):
+    return n_px * (SX + SY) / 2
+
+
+# ------------------------------------------------------------------ document
 doc = ezdxf.new("R2010", setup=True)
 doc.units = units.M
 doc.header["$INSUNITS"] = 6
 doc.header["$MEASUREMENT"] = 1
 msp = doc.modelspace()
-
 LAYERS = {
-    "A-WALL": (7, 0.50), "A-WALL-HATCH": (8, 0.0), "A-SITE-WALL": (7, 0.35),
-    "A-DOOR": (30, 0.18), "A-WINDOW": (4, 0.18), "A-STAIR": (2, 0.18),
-    "A-FURN": (9, 0.13), "A-PLANT": (3, 0.13), "A-TEXT": (7, 0.18),
-    "A-SECTION": (1, 0.25), "A-AREA": (5, 0.13),
+    "A-WALL": (7, 50), "A-WALL-HATCH": (8, 0), "A-SITE-WALL": (7, 35), "A-DOOR": (30, 18),
+    "A-WINDOW": (4, 18), "A-STAIR": (2, 18), "A-FURN": (9, 13), "A-PLANT": (3, 13),
+    "A-TEXT": (7, 18), "A-SECTION": (1, 25), "A-DIM": (7, 13),
 }
 for name, (color, lw) in LAYERS.items():
-    doc.layers.add(name, color=color, lineweight=int(lw * 100))
+    doc.layers.add(name, color=color, lineweight=lw)
 doc.styles.add("ARCH", font="arial.ttf")
-
 EXT, INT, SITE = 0.30, 0.15, 0.25
-# overall plot size requested: 26.00 m x 22.00 m (sketch was traced at 27.5 x 23)
-PLOT_W, PLOT_H = 26.0, 22.0
-SX, SY = PLOT_W / 27.5, PLOT_H / 23.0
 
-# ---------------------------------------------------------------- walls
-# (x1, y1, x2, y2, thickness)
-walls = [
+# ------------------------------------------------------------------ walls (pixel coords from the sketch)
+walls_px = [
     # exterior
-    (5.5, 3.2, 5.5, 8.3, EXT), (5.5, 15.0, 5.5, 21.0, EXT),
-    (8.3, 8.3, 8.3, 15.0, EXT),                      # entrance wall (porch side)
-    (5.5, 21.0, 24.5, 21.0, EXT), (24.5, 21.0, 24.5, 8.3, EXT),
-    (24.5, 8.3, 19.5, 8.3, EXT),
-    (17.4, 8.3, 19.5, 5.2, EXT),                     # diagonal wall to garden
-    (19.5, 5.2, 27.5, 5.2, EXT), (19.5, 0.0, 19.5, 5.2, EXT),
-    (19.5, 3.2, 5.5, 3.2, EXT),
-    (5.5, 8.3, 8.3, 8.3, EXT), (5.5, 15.0, 8.3, 15.0, EXT),
+    (382, 323, 1095, 323, EXT),   # north wall
+    (382, 323, 382, 550, EXT),    # west wall: bath + majlis
+    (382, 550, 607, 550, EXT),    # majlis south wall (porch side)
+    (490, 550, 490, 800, EXT),    # entrance wall: porch -> hall
+    (385, 800, 490, 800, EXT),    # living north wall (porch side)
+    (385, 800, 385, 990, EXT),    # living west wall
+    (385, 990, 905, 990, EXT),    # living + dining south wall
+    (905, 910, 905, 1105, EXT),   # dining east / kitchen west wall
+    (820, 800, 905, 910, EXT),    # diagonal dining wall to garden
+    (905, 913, 1210, 913, EXT),   # kitchen + laundry north wall
+    (1095, 323, 1095, 800, EXT),  # east wall
+    (905, 800, 1095, 800, EXT),   # kids 2 block south wall
     # interior
-    (8.3, 15.0, 11.5, 15.0, INT), (5.5, 19.0, 11.5, 19.0, INT),
-    (11.5, 15.0, 11.5, 21.0, INT), (11.5, 18.0, 13.5, 18.0, INT),
-    (13.5, 18.0, 13.5, 21.0, INT), (11.5, 15.5, 22.0, 15.5, INT),
-    (16.5, 15.5, 16.5, 21.0, INT), (20.0, 15.5, 20.0, 21.0, INT),
-    (20.0, 18.5, 24.5, 18.5, INT), (22.0, 13.5, 22.0, 18.5, INT),
-    (19.5, 13.5, 24.5, 13.5, INT), (19.5, 8.3, 19.5, 13.5, INT),
-    (19.5, 10.0, 24.5, 10.0, INT), (21.5, 8.3, 21.5, 10.0, INT),
-    (11.5, 8.3, 11.5, 12.3, INT), (11.5, 12.3, 19.5, 12.3, INT),
-    (11.5, 8.3, 17.4, 8.3, INT), (24.0, 0.0, 24.0, 5.2, INT),
+    (382, 395, 607, 395, INT),    # bath / majlis
+    (497, 323, 497, 392, INT),    # WC partition
+    (607, 323, 607, 550, INT),    # majlis east wall
+    (677, 323, 677, 445, INT),    # bath 2 / kids 1
+    (607, 445, 677, 445, INT),    # bath 2 south wall
+    (797, 323, 797, 517, INT),    # kids 1 / master
+    (607, 517, 1000, 517, INT),   # corridor north wall
+    (942, 323, 942, 420, INT),    # master / master bath
+    (942, 405, 1095, 405, INT),   # master bath south wall
+    (1000, 405, 1000, 600, INT),  # office west wall
+    (905, 600, 1095, 600, INT),   # kids 2 north wall / office south wall
+    (605, 648, 905, 648, INT),    # courtyard north (stairs side)
+    (605, 648, 605, 800, INT),    # courtyard west (hall side)
+    (605, 800, 820, 800, INT),    # courtyard south (living side)
+    (905, 600, 905, 800, INT),    # courtyard east / kids 2 west
+    (975, 733, 1095, 733, INT),   # bath 3 north wall
+    (975, 733, 975, 800, INT),    # bath 3 west wall
+    (1080, 913, 1080, 1105, INT), # kitchen / laundry
 ]
 
-# openings: (kind, orientation, wall_coord, start, end, swing, extra)
-#  orientation 'h' = horizontal wall at y=wall_coord ; 'v' = vertical wall at x=wall_coord
-doors = [  # positions follow the door swings drawn on the sketch
-    ("double", "v", 8.3, 10.6, 12.6, +1),   # main entrance (porch -> hall), opens inward
-    ("single", "h", 15.0, 6.0, 6.9, +1),     # majlis guest door from porch
-    ("single", "h", 19.0, 8.4, 9.2, +1),     # guest bath from majlis
-    ("single", "h", 18.0, 12.5, 13.3, +1),   # bath 2 from kids 1
-    ("single", "h", 15.5, 15.4, 16.3, +1),   # kids 1
-    ("single", "h", 15.5, 16.9, 17.8, +1),   # master
-    ("open",   "v", 20.0, 16.2, 17.4, 0),    # master -> dressing
-    ("single", "h", 18.5, 20.4, 21.2, +1),   # master bath (from dressing)
-    ("single", "v", 22.0, 14.2, 15.1, +1),   # office
-    ("single", "h", 13.5, 19.8, 20.7, -1),   # kids 2
-    ("single", "h", 10.0, 21.7, 22.5, -1),   # bath 3 (from kids 2)
-    ("open",   "h", 10.0, 19.8, 21.2, 0),    # wardrobe kids 2
-    ("single", "v", 19.5, 4.0, 4.9, +1),     # dining -> kitchen
-    ("open",   "v", 24.0, 3.8, 4.8, 0),      # kitchen -> laundry
-    ("single", "h", 5.2, 26.0, 26.9, -1),    # laundry service door from garden
+# doors: (hinge_px, closed_end_px, swing)  swing = side the leaf opens to: N/S/E/W (N = up on the sheet)
+doors_px = [
+    ("double", (490, 625), (490, 712), "E"),   # main entrance porch -> hall (two leaves)
+    ("single", (412, 550), (455, 550), "N"),   # majlis (from porch)
+    ("single", (497, 392), (497, 350), "W"),   # WC in guest bath
+    ("single", (672, 445), (630, 445), "N"),   # bath 2 (from kids 1)
+    ("single", (787, 517), (745, 517), "N"),   # kids 1
+    ("single", (812, 517), (852, 517), "N"),   # master
+    ("single", (985, 405), (950, 405), "N"),   # master bath
+    ("single", (1000, 590), (1000, 543), "E"), # office
+    ("single", (915, 600), (960, 600), "S"),   # kids 2
+    ("single", (975, 772), (975, 733), "E"),   # bath 3
+    ("single", (905, 978), (905, 928), "E"),   # kitchen (from dining)
+    ("single", (1200, 913), (1152, 913), "S"), # laundry (from garden)
 ]
-windows = [
-    ("h", 21.0, 6.6, 8.2), ("h", 21.0, 14.3, 15.7), ("h", 21.0, 17.5, 19.0),
-    ("h", 21.0, 22.0, 23.5), ("v", 5.5, 16.2, 17.8), ("v", 24.5, 15.2, 16.8),
-    ("v", 24.5, 11.0, 12.6), ("h", 3.2, 6.8, 9.5), ("h", 3.2, 10.8, 12.6),
-    ("h", 3.2, 14.6, 16.8), ("v", 5.5, 4.6, 6.8), ("h", 5.2, 21.0, 22.6),
-    ("v", 11.5, 9.4, 11.2), ("v", 19.5, 9.0, 9.8),
-]
-# courtyard opens to garden between (17.4, 8.3) and (19.5, 8.3) -> no wall there already
+openings_px = [((520, 395), (600, 395))]       # open arch majlis -> wash basins
+windows_px = [((700, 990), (890, 990), EXT)]    # glazed strip, living/dining south wall
 
-# --- fit everything to the requested plot size (wall thicknesses stay true)
-windows = [(o, c, a, b, EXT if (o == "h" and c in (21.0, 3.2, 5.2)) or (o == "v" and c in (5.5, 24.5)) else INT)
-           for o, c, a, b in windows]
-walls = [(x1 * SX, y1 * SY, x2 * SX, y2 * SY, t) for x1, y1, x2, y2, t in walls]
+NRM = {"N": (0, 1), "S": (0, -1), "E": (1, 0), "W": (-1, 0)}
 
 
-def _sc(o, c, a, b):
-    return (c * SY, a * SX, b * SX) if o == "h" else (c * SX, a * SY, b * SY)
+def seg_poly(a, b, t):
+    return LineString([a, b]).buffer(t / 2, cap_style="square", join_style="mitre")
 
 
-doors = [(k, o, *_sc(o, c, a, b), sw) for k, o, c, a, b, sw in doors]
-windows = [(o, *_sc(o, c, a, b), t) for o, c, a, b, t in windows]
+def cut(a, b, depth=0.8):
+    (x1, y1), (x2, y2) = a, b
+    if abs(y1 - y2) < 1e-6:
+        return box(min(x1, x2), y1 - depth / 2, max(x1, x2), y1 + depth / 2)
+    return box(x1 - depth / 2, min(y1, y2), x1 + depth / 2, max(y1, y2))
 
 
-def wall_poly(x1, y1, x2, y2, t):
-    return LineString([(x1, y1), (x2, y2)]).buffer(t / 2, cap_style="square", join_style="mitre")
+walls = [(P(x1, y1), P(x2, y2), t) for x1, y1, x2, y2, t in walls_px]
+doors = [(k, P(*h), P(*c), s) for k, h, c, s in doors_px]
+openings = [(P(*a), P(*b)) for a, b in openings_px]
+windows = [(P(*a), P(*b), t) for a, b, t in windows_px]
+
+solid = unary_union([seg_poly(a, b, t) for a, b, t in walls])
+solid = solid.difference(unary_union(
+    [cut(h, c) for _, h, c, _ in doors] + [cut(a, b) for a, b in openings] + [cut(a, b) for a, b, _ in windows]))
 
 
-def cut_rect(ori, c, a, b, depth=0.8):
-    return box(a, c - depth / 2, b, c + depth / 2) if ori == "h" else box(c - depth / 2, a, c + depth / 2, b)
-
-
-solid = unary_union([wall_poly(*w) for w in walls])
-cuts = [cut_rect(o, c, a, b) for _, o, c, a, b, _ in doors] + [cut_rect(o, c, a, b) for o, c, a, b, _ in windows]
-solid = solid.difference(unary_union(cuts))
-
-
-def add_poly_with_hatch(geom, layer, hatch_layer):
-    polys = [geom] if isinstance(geom, Polygon) else list(geom.geoms)
-    for p in polys:
+def add_filled(geom, layer, hatch_layer):
+    for p in ([geom] if isinstance(geom, Polygon) else list(geom.geoms)):
         msp.add_lwpolyline(list(p.exterior.coords), close=True, dxfattribs={"layer": layer})
         for hole in p.interiors:
             msp.add_lwpolyline(list(hole.coords), close=True, dxfattribs={"layer": layer})
@@ -129,304 +141,256 @@ def add_poly_with_hatch(geom, layer, hatch_layer):
             h.paths.add_polyline_path(list(hole.coords)[:-1], is_closed=True, flags=0)
 
 
-add_poly_with_hatch(solid, "A-WALL", "A-WALL-HATCH")
+add_filled(solid, "A-WALL", "A-WALL-HATCH")
 
-# ---------------------------------------------------------------- site wall with gates
-site = LineString([(0, 0), (PLOT_W, 0), (PLOT_W, PLOT_H), (0, PLOT_H), (0, 0)]).buffer(SITE / 2, join_style="mitre")
-site = site.difference(cut_rect("v", 0, 16.8 * SY, 18.6 * SY)).difference(cut_rect("v", 0, 4.6 * SY, 10.2 * SY))
+# ------------------------------------------------------------------ plot (site) wall with the two gates
+gate_ped = (P(190, 410), P(190, 490))
+gate_car = (P(190, 730), P(190, 935))
+site = LineString([P(PX0, PY1), P(PX1, PY1), P(PX1, PY0), P(PX0, PY0), P(PX0, PY1)]).buffer(
+    SITE / 2, join_style="mitre")
+site = site.difference(cut(*gate_ped)).difference(cut(*gate_car))
 for p in (site.geoms if hasattr(site, "geoms") else [site]):
     msp.add_lwpolyline(list(p.exterior.coords), close=True, dxfattribs={"layer": "A-SITE-WALL"})
+# sliding car gate leaf (drawn just inside the wall like the sketch)
+gx0, gy0 = P(209, 940)
+gx1, gy1 = P(217, 745)
+msp.add_lwpolyline([(gx0, gy0), (gx1, gy0), (gx1, gy1), (gx0, gy1)], close=True,
+                   dxfattribs={"layer": "A-DOOR"})
+
+# ------------------------------------------------------------------ door symbols
+DL = {"layer": "A-DOOR"}
 
 
-
-# ---------------------------------------------------------------- doors / windows symbols
-def draw_door(kind, ori, c, a, b, s):
-    L = {"layer": "A-DOOR"}
-    w = b - a
-    if kind == "open":
-        return
-    leaves = [(a, w, +1)] if kind == "single" else [(a, w / 2, +1), (b, w / 2, -1)]
-    for hinge, lw, d in leaves:
-        if ori == "h":
-            hx, hy = hinge, c
-            msp.add_line((hx, hy), (hx, hy + s * lw), dxfattribs=L)
-            base = 0 if d > 0 else 180
-            if s > 0:
-                start, end = (base, 90) if d > 0 else (90, 180)
-            else:
-                start, end = (270, 360) if d > 0 else (180, 270)
-        else:
-            hx, hy = c, hinge
-            msp.add_line((hx, hy), (hx + s * lw, hy), dxfattribs=L)
-            if s > 0:
-                start, end = (0, 90) if d > 0 else (270, 360)
-            else:
-                start, end = (90, 180) if d > 0 else (180, 270)
-        msp.add_arc((hx, hy), lw, start, end, dxfattribs=L)
+def ang(v):
+    return math.degrees(math.atan2(v[1], v[0])) % 360
 
 
-for d in doors:
-    draw_door(*d)
+def leaf(h, c, swing):
+    w = math.dist(h, c)
+    n = NRM[swing]
+    tip = (h[0] + n[0] * w, h[1] + n[1] * w)
+    msp.add_line(h, tip, dxfattribs=DL)
+    a_n, a_c = ang(n), ang((c[0] - h[0], c[1] - h[1]))
+    start, end = (a_n, a_c) if round((a_c - a_n) % 360) == 90 else (a_c, a_n)
+    msp.add_arc(h, w, start, end, dxfattribs=DL)
 
-for ori, c, a, b, t in windows:
+
+for kind, h, c, s in doors:
+    if kind == "single":
+        leaf(h, c, s)
+    else:
+        mid = ((h[0] + c[0]) / 2, (h[1] + c[1]) / 2)
+        leaf(h, mid, s)
+        leaf(c, mid, s)
+leaf(gate_ped[0], gate_ped[1], "E")          # pedestrian gate swings into the plot
+
+for a, b, t in windows:
     for off in (-t / 2, -0.03, 0.03, t / 2):
-        if ori == "h":
-            msp.add_line((a, c + off), (b, c + off), dxfattribs={"layer": "A-WINDOW"})
-        else:
-            msp.add_line((c + off, a), (c + off, b), dxfattribs={"layer": "A-WINDOW"})
+        msp.add_line((a[0], a[1] + off), (b[0], b[1] + off), dxfattribs={"layer": "A-WINDOW"})
     for e in (a, b):
-        p1, p2 = ((e, c - t / 2), (e, c + t / 2)) if ori == "h" else ((c - t / 2, e), (c + t / 2, e))
-        msp.add_line(p1, p2, dxfattribs={"layer": "A-WINDOW"})
+        msp.add_line((e[0], e[1] - t / 2), (e[0], e[1] + t / 2), dxfattribs={"layer": "A-WINDOW"})
 
-# everything from here on is traced in sketch coordinates and fitted afterwards
-N0 = len(msp)
-# pedestrian gate (two leaves) + sliding car gate
-msp.add_line((0, 16.8), (-0.9, 17.7), dxfattribs={"layer": "A-DOOR"})
-msp.add_line((0, 18.6), (-0.9, 17.7), dxfattribs={"layer": "A-DOOR"})
-msp.add_arc((0, 16.8), 0.9 * math.sqrt(2), 90, 135, dxfattribs={"layer": "A-DOOR"})
-msp.add_lwpolyline([(-0.35, 4.6), (-0.35, 10.2)], dxfattribs={"layer": "A-DOOR", "linetype": "DASHED"})
-msp.add_lwpolyline([(-0.25, 4.6), (-0.25, 10.2)], dxfattribs={"layer": "A-DOOR"})
-
-# ---------------------------------------------------------------- stairs
-for i in range(17):
-    x = 12.3 + i * 0.4
-    msp.add_line((x, 12.4), (x, 13.45), dxfattribs={"layer": "A-STAIR"})
-msp.add_lwpolyline([(12.3, 12.9), (18.6, 12.9)], dxfattribs={"layer": "A-STAIR"})
-msp.add_lwpolyline([(18.3, 13.05), (18.6, 12.9), (18.3, 12.75)], dxfattribs={"layer": "A-STAIR"})
-msp.add_text("UP", height=0.22, dxfattribs={"layer": "A-TEXT", "style": "ARCH"}).set_placement(
-    (12.4, 12.95), align=TextEntityAlignment.BOTTOM_LEFT)
+# ------------------------------------------------------------------ stairs (x 605..905, y 600..648 px)
+ST = {"layer": "A-STAIR"}
+for i in range(23):
+    x = 612 + i * 13
+    msp.add_line(P(x, 602), P(x, 646), dxfattribs=ST)
+msp.add_lwpolyline([P(605, 618), P(665, 618)], dxfattribs=ST)
+msp.add_lwpolyline([P(655, 612), P(665, 618), P(655, 624)], dxfattribs=ST)
+msp.add_lwpolyline([P(742, 646), P(752, 624), P(760, 628), P(770, 602)], dxfattribs=ST)   # break line
 
 
-# ---------------------------------------------------------------- furniture helpers
+# ------------------------------------------------------------------ furniture (all at sketch positions)
 F = {"layer": "A-FURN"}
 
 
-def rect(x, y, w, h, layer="A-FURN"):
-    msp.add_lwpolyline([(x, y), (x + w, y), (x + w, y + h), (x, y + h)], close=True, dxfattribs={"layer": layer})
+def R(x0, y0, x1, y1, layer="A-FURN"):
+    a, b = P(x0, y1), P(x1, y0)
+    msp.add_lwpolyline([a, (b[0], a[1]), b, (a[0], b[1])], close=True, dxfattribs={"layer": layer})
 
 
-def bed(x, y, w, h, pillow_top=True):
-    rect(x, y, w, h)
-    py = y + h - 0.55 if pillow_top else y + 0.05
-    if w > 1.2:
-        rect(x + 0.1, py, w / 2 - 0.15, 0.45); rect(x + w / 2 + 0.05, py, w / 2 - 0.15, 0.45)
+def C(x, y, r, layer="A-FURN"):
+    msp.add_circle(P(x, y), L(r), dxfattribs={"layer": layer})
+
+
+def E(x, y, rx, ry, layer="A-FURN"):
+    if rx >= ry:
+        msp.add_ellipse(P(x, y), major_axis=(L(rx), 0), ratio=ry / rx, dxfattribs={"layer": layer})
     else:
-        rect(x + 0.1, py, w - 0.2, 0.45)
-    fy = y + h * 0.55 if pillow_top else y + h * 0.45
-    msp.add_line((x, fy), (x + w, fy), dxfattribs=F)
+        msp.add_ellipse(P(x, y), major_axis=(0, L(ry)), ratio=rx / ry, dxfattribs={"layer": layer})
 
 
-def wc(x, y, rot=0):
-    blk = "WC"
-    if blk not in doc.blocks:
-        b = doc.blocks.new(blk)
-        b.add_lwpolyline([(-0.25, 0), (0.25, 0), (0.25, 0.2), (-0.25, 0.2)], close=True)
-        b.add_ellipse((0, 0.48), major_axis=(0, 0.3), ratio=0.65)
-    msp.add_blockref(blk, (x, y), dxfattribs={"layer": "A-FURN", "rotation": rot})
+def Ln(x0, y0, x1, y1, layer="A-FURN"):
+    msp.add_line(P(x0, y0), P(x1, y1), dxfattribs={"layer": layer})
 
 
-def basin(x, y, rot=0):
-    if "BASIN" not in doc.blocks:
-        b = doc.blocks.new("BASIN")
-        b.add_lwpolyline([(-0.3, 0), (0.3, 0), (0.3, 0.45), (-0.3, 0.45)], close=True)
-        b.add_ellipse((0, 0.22), major_axis=(0.2, 0), ratio=0.7)
-    msp.add_blockref("BASIN", (x, y), dxfattribs={"layer": "A-FURN", "rotation": rot})
+def X(x0, y0, x1, y1):  # box with cross (shower)
+    R(x0, y0, x1, y1); Ln(x0, y0, x1, y1); Ln(x0, y1, x1, y0)
 
 
-def shower(x, y, w, h):
-    rect(x, y, w, h)
-    msp.add_line((x, y), (x + w, y + h), dxfattribs=F)
-    msp.add_line((x, y + h), (x + w, y), dxfattribs=F)
+def bed(x0, y0, x1, y1, pillow):
+    R(x0, y0, x1, y1)
+    if pillow == "N":
+        if x1 - x0 > 50:
+            R(x0 + 4, y0 + 4, (x0 + x1) / 2 - 2, y0 + 18); R((x0 + x1) / 2 + 2, y0 + 4, x1 - 4, y0 + 18)
+        else:
+            R(x0 + 5, y0 + 4, x1 - 5, y0 + 18)
+        Ln(x0, y0 + (y1 - y0) * 0.45, x1, y0 + (y1 - y0) * 0.45)
+    else:  # pillow on east side
+        R(x1 - 20, y0 + 5, x1 - 5, y1 - 5)
+        Ln(x0 + (x1 - x0) * 0.55, y0, x0 + (x1 - x0) * 0.55, y1)
+
+
+def wc(x, y, facing):  # tank against the wall, bowl towards `facing` (on the sheet)
+    dx, dy = {"S": (0, 1), "N": (0, -1), "E": (1, 0), "W": (-1, 0)}[facing]
+    if dy:
+        R(x - 9, y - 4, x + 9, y + 4); E(x, y + dy * 13, 7, 10)
+    else:
+        R(x - 4, y - 9, x + 4, y + 9); E(x + dx * 13, y, 10, 7)
+
+
+def basin(x, y, r=10):
+    C(x, y, r); C(x, y, r * 0.45)
 
 
 def tree(x, y, r):
-    msp.add_circle((x, y), r, dxfattribs={"layer": "A-PLANT"})
-    for k in range(10):
-        a = math.radians(k * 36)
-        msp.add_line((x, y), (x + r * math.cos(a), y + r * math.sin(a)), dxfattribs={"layer": "A-PLANT"})
-    msp.add_circle((x, y), r * 0.15, dxfattribs={"layer": "A-PLANT"})
+    C(x, y, r, "A-PLANT"); C(x, y, r * 0.15, "A-PLANT")
+    for k in range(12):
+        a = math.radians(k * 30)
+        Ln(x, y, x + r * math.cos(a), y + r * math.sin(a), "A-PLANT")
 
 
-def chairs_around(cx, cy, w, h):
-    rect(cx - w / 2, cy - h / 2, w, h)
-    n = max(2, int(w / 0.6))
-    for i in range(n):
-        x = cx - w / 2 + (i + 0.5) * w / n - 0.2
-        rect(x, cy + h / 2 + 0.05, 0.4, 0.4)
-        rect(x, cy - h / 2 - 0.45, 0.4, 0.4)
-
-
-# Majlis: L/U floor seating + table + TV unit
-rect(5.75, 16.05, 0.7, 2.7); rect(5.75, 18.05, 5.2, 0.7); rect(10.25, 15.3, 0.7, 2.75)
-rect(7.6, 16.3, 1.8, 1.2)
-# guest bath
-wc(6.3, 20.85, 180); basin(7.6, 20.85, 180); basin(8.4, 20.85, 180); shower(10.2, 19.6, 1.2, 1.25)
+# guest bath (WC + wash area)
+wc(412, 330, "S"); basin(455, 340, 9); basin(535, 340); basin(580, 340)
+R(510, 326, 600, 356)                                  # vanity counter
+# majlis
+C(407, 412, 9)                                         # side table
+R(420, 405, 525, 432)                                  # sofa north
+R(390, 440, 432, 485)                                  # armchair west
+R(455, 425, 540, 515)                                  # table / rug
+R(567, 417, 600, 495)                                  # TV unit
+R(485, 500, 575, 543)                                  # sofa south
 # bath 2
-wc(12.0, 20.85, 180); basin(13.35, 19.6, 90); shower(11.65, 18.15, 0.75, 1.0)
-# kids 1 wardrobe
-rect(11.7, 15.7, 0.6, 2.1)
+X(610, 326, 650, 366); basin(630, 385, 8); wc(612, 418, "E")
 # kids 1
-bed(14.0, 18.4, 1.2, 2.1); rect(15.4, 20.35, 0.5, 0.45); rect(13.7, 15.7, 1.4, 0.6)
+bed(717, 330, 770, 440, "N"); R(610, 455, 650, 512)    # bed + wardrobe
 # master
-bed(17.2, 18.75, 1.9, 2.1); rect(16.65, 20.35, 0.45, 0.45); rect(19.2, 20.35, 0.45, 0.45)
-# dressing
-rect(20.2, 15.7, 0.6, 2.6); rect(21.3, 15.7, 0.6, 2.6)
+bed(830, 330, 900, 435, "N"); R(808, 330, 826, 346); R(904, 330, 922, 346)
+R(945, 485, 985, 505)                                  # built-in wardrobe (dressing)
 # master bath
-basin(21.6, 20.85, 180); basin(22.4, 20.85, 180); wc(23.4, 20.85, 180); rect(23.6, 18.7, 0.75, 1.7)
-msp.add_ellipse((23.97, 19.55), major_axis=(0, 0.7), ratio=0.4, dxfattribs=F)
+basin(972, 342, 11); wc(1020, 330, "S"); R(1055, 333, 1082, 400); E(1068, 366, 9, 28)
 # office
-rect(23.6, 15.6, 0.7, 1.6); rect(23.0, 16.15, 0.45, 0.45); rect(22.2, 17.6, 2.1, 0.6)
+R(1012, 440, 1075, 515); C(1037, 468, 12)
 # kids 2
-bed(22.1, 11.1, 2.1, 1.2); rect(23.75, 12.4, 0.5, 0.45)
-msp.add_line((22.1, 11.1), (22.1, 12.3), dxfattribs=F)
+bed(975, 645, 1080, 700, "E")
+R(907, 725, 940, 800); R(940, 772, 975, 800)           # wardrobe (L shape)
 # bath 3
-wc(24.35, 9.15, 90); basin(23.0, 8.45, 0); shower(21.7, 8.5, 0.95, 1.3)
-# wardrobe kids 2
-rect(19.7, 8.5, 1.6, 0.6)
+basin(992, 788, 8); wc(1025, 795, "N"); X(1042, 760, 1082, 798)
+# living room
+R(395, 810, 500, 840); R(395, 840, 445, 930)           # L-sofa
+R(415, 920, 455, 965)                                  # armchair
+E(522, 885, 77, 55)                                    # rug / coffee table
+C(472, 930, 10)                                        # side table
+R(495, 935, 535, 975)                                  # armchair
+R(545, 930, 640, 975); R(600, 880, 655, 930)           # L-sofa south-east
+# dining (table for 8)
+R(725, 880, 820, 920)
+for x in (737, 760, 783, 806):
+    R(x - 8, 862, x + 8, 878); R(x - 8, 922, x + 8, 938)
+# kitchen
+R(907, 990, 935, 1060)                                 # cooktop counter
+for bx, by in ((914, 1015), (928, 1015), (914, 1032), (928, 1032)):
+    C(bx, by, 4)
+R(960, 1080, 1030, 1100); basin(995, 1090, 7)          # sink counter
+R(975, 980, 1015, 1045)                                # island
+# laundry
+R(1115, 1080, 1145, 1100); R(1150, 1080, 1180, 1100)
+# porch planters + porch edge
+C(395, 785, 8); C(425, 785, 8)
+Ln(383, 555, 383, 800)
+# car
+R(280, 865, 345, 1045); R(288, 925, 337, 975); Ln(285, 905, 340, 905); Ln(285, 1000, 340, 1000)
 
-# living: sofas, coffee table, armchairs
-rect(5.8, 3.6, 0.85, 3.9); rect(5.8, 6.7, 3.6, 0.85); rect(10.5, 3.6, 0.85, 3.3)
-rect(8.5, 3.6, 1.9, 0.8)
-msp.add_ellipse((8.3, 5.3), major_axis=(1.5, 0), ratio=0.55, dxfattribs=F)
-rect(7.0, 3.6, 0.8, 0.8)
-msp.add_circle((9.9, 5.0), 0.25, dxfattribs=F)
-# dining 4x3 zone: table for 6
-chairs_around(15.4, 5.6, 1.8, 0.9)
-# kitchen: counters + island
-rect(19.75, 0.15, 0.6, 3.6); rect(19.75, 0.15, 4.0, 0.6); rect(21.4, 2.0, 1.6, 0.9)
-for i in range(4):
-    msp.add_circle((19.95 + (i % 2) * 0.25, 1.4 + (i // 2) * 0.25), 0.09, dxfattribs=F)
-basin(22.5, 0.2, 0)
-# laundry: washer / dryer
-rect(24.2, 0.15, 0.6, 0.6); rect(24.9, 0.15, 0.6, 0.6)
-rect(26.8, 0.4, 0.6, 3.6)
-for x, t in ((24.5, "WM"), (25.2, "DR")):
-    msp.add_text(t, height=0.15, dxfattribs={"layer": "A-TEXT", "style": "ARCH"}).set_placement(
-        (x, 0.45), align=TextEntityAlignment.MIDDLE_CENTER)
-
-# courtyard: round fountain + planting
-msp.add_circle((14.5, 10.3), 1.1, dxfattribs={"layer": "A-PLANT"})
-msp.add_circle((14.5, 10.3), 0.75, dxfattribs={"layer": "A-PLANT"})
-msp.add_circle((14.5, 10.3), 0.2, dxfattribs={"layer": "A-PLANT"})
-for x, y, r in ((16.6, 11.3, 0.7), (18.2, 11.2, 0.7), (12.3, 9.2, 0.5), (18.6, 9.4, 0.5)):
+# courtyard: fountain, planters, trees
+for r in (52, 40, 10):
+    C(700, 730, r, "A-PLANT")
+E(632, 745, 17, 40, "A-PLANT")
+R(882, 705, 898, 780, "A-PLANT")
+for x, y, r in ((635, 675, 22), (760, 670, 25), (810, 690, 25), (860, 670, 22)):
     tree(x, y, r)
-
-# car in parking
-rect(2.6, 2.3, 1.9, 4.6)
-rect(2.8, 4.3, 1.5, 1.2)
-msp.add_line((2.8, 3.2), (4.3, 3.2), dxfattribs=F)
-msp.add_line((2.8, 6.0), (4.3, 6.0), dxfattribs=F)
-
-# landscaping
-for x, y, r in ((1.2, 21.6, 0.9), (2.8, 21.9, 0.7), (13.3, 1.6, 0.8), (15.0, 1.7, 0.9),
-                (17.0, 1.5, 1.1), (18.4, 2.2, 0.6), (21.3, 7.1, 0.7), (22.9, 7.0, 0.8)):
+# landscape trees (plot)
+for x, y, r in ((235, 295, 35), (305, 268, 25), (665, 1065, 25), (725, 1050, 30), (790, 1060, 40),
+                (875, 1025, 25), (960, 822, 28), (1015, 825, 25)):
     tree(x, y, r)
-# garden stepping stones along the courtyard -> garden path
-for i in range(14):
-    cx, cy = 18.0 + i * 0.65, 6.0 + 0.9 * math.sin(i * 0.8)
-    if cx < 27:
-        msp.add_ellipse((cx, cy), major_axis=(0.22, 0.05), ratio=0.65, dxfattribs={"layer": "A-PLANT"})
-# deck lines right of kids 2
-for i in range(7):
-    y = 8.6 + i * 0.6
-    msp.add_line((24.75, y), (27.3, y), dxfattribs={"layer": "A-PLANT"})
+# garden stepping stones (garden strip between courtyard/kids 2 and kitchen)
+rnd = random.Random(7)
+garden = Polygon([(830, 808), (1205, 808), (1205, 905), (912, 905)])
+busy = unary_union([Point(960, 822).buffer(32), Point(1015, 825).buffer(30)])
+placed = []
+for _ in range(900):
+    x, y = rnd.uniform(835, 1200), rnd.uniform(810, 902)
+    pt = Point(x, y)
+    if garden.contains(pt.buffer(9)) and not busy.intersects(pt.buffer(9)) and all(pt.distance(q) > 19 for q in placed):
+        placed.append(pt)
+        E(x, y, rnd.uniform(7, 10), rnd.uniform(5, 7), "A-PLANT")
+# timber deck east of kids 2
+for y in range(612, 800, 18):
+    Ln(1100, y, 1205, y, "A-PLANT")
 
 
-# ---------------------------------------------------------------- labels
-def sz(w, h):
-    return f"{w * SX:.2f} x {h * SY:.2f} m"
+# ------------------------------------------------------------------ text (names & sizes as written on the sketch)
+def T(x, y, s, h=0.3, rot=0, layer="A-TEXT", align=TextEntityAlignment.MIDDLE_CENTER):
+    msp.add_text(s, height=h, rotation=rot, dxfattribs={"layer": layer, "style": "ARCH"}).set_placement(
+        P(x, y), align=align)
 
 
-def label(x, y, name, size=None, h=0.32):
-    msp.add_text(name, height=h, dxfattribs={"layer": "A-TEXT", "style": "ARCH"}).set_placement(
-        (x, y), align=TextEntityAlignment.MIDDLE_CENTER)
+for x, y, name, size, h in [
+    (497, 455, "MAJLIS", "6 x 4 m", 0.32), (430, 375, "BATH", "", 0.22), (560, 372, "WASH", "", 0.18),
+    (640, 400, "BATH", "", 0.18), (745, 465, "KIDS 1", "3 x 5 m", 0.28), (870, 465, "MASTER", "3.5 x 5 m", 0.28),
+    (1030, 380, "BATH", "", 0.22), (1045, 530, "OFFICE", "", 0.22), (950, 670, "KIDS 2", "3 x 5 m", 0.26),
+    (1040, 745, "BATH", "", 0.16), (800, 560, "CORRIDOR", "", 0.25), (548, 700, "HALL", "", 0.25),
+    (730, 780, "COURTYARD", "", 0.22), (530, 880, "LIVING ROOM", "8 x 5 m", 0.3), (772, 900, "DINING", "4 x 3 m", 0.22),
+    (995, 960, "KITCHEN", "4.5 x 5 m", 0.24), (1145, 990, "LAUNDRY", "", 0.22), (440, 610, "PORCH", "", 0.24),
+    (312, 830, "PARKING", "", 0.26), (1100, 860, "GARDEN", "", 0.26),
+]:
+    T(x, y, name, h)
     if size:
-        msp.add_text(size, height=h * 0.75, dxfattribs={"layer": "A-TEXT", "style": "ARCH"}).set_placement(
-            (x, y - h * 1.3), align=TextEntityAlignment.MIDDLE_CENTER)
+        T(x, y + h / SY * 1.35, size, h * 0.75)
+T(1130, 1090, "WM", 0.13); T(1165, 1090, "DR", 0.13)
+T(335, 690, "+0.00", 0.2, rot=-90); T(420, 715, "+0.15", 0.2, rot=-90)
+T(630, 640, "UP", 0.18)
+T(30, 438, "ENTRANCE", 0.3, align=TextEntityAlignment.MIDDLE_LEFT)
+msp.add_lwpolyline([P(130, 438), P(175, 438)], dxfattribs={"layer": "A-TEXT"})
+msp.add_lwpolyline([P(165, 432), P(175, 438), P(165, 444)], dxfattribs={"layer": "A-TEXT"})
+T(530, 115, "FLOOR PLAN", 1.0)
+T(600, 1135, "FLOOR PLAN", 0.35); T(600, 1153, "SCALE 1:100", 0.25)
+Ln(545, 1144, 655, 1144, "A-TEXT")
 
 
-label(8.5, 17.0, "MAJLIS", sz(6, 4))
-label(8.6, 20.0, "BATH", h=0.25)
-label(12.5, 19.2, "BATH", h=0.22)
-label(15.0, 17.2, "KIDS 1", sz(3, 5.5))
-label(18.25, 17.2, "MASTER", sz(3.5, 5.5))
-label(22.2, 19.6, "BATH", h=0.25)
-label(21.0, 18.0, "DRESS", h=0.2)
-label(23.25, 14.6, "OFFICE", h=0.25)
-label(21.0, 12.0, "KIDS 2", sz(5, 3.5), h=0.28)
-label(22.9, 9.6, "BATH", h=0.2)
-label(16.8, 14.5, "CORRIDOR", h=0.25)
-label(9.9, 12.0, "HALL", h=0.28)
-label(15.8, 9.0, "COURTYARD", h=0.28)
-label(8.3, 5.3, "LIVING ROOM", sz(8, 5.1))
-label(15.4, 7.3, "DINING", sz(4, 3), h=0.28)
-label(22.0, 3.4, "KITCHEN", sz(4.5, 5.2), h=0.28)
-label(25.7, 2.9, "LAUNDRY", h=0.25)
-label(6.9, 12.5, "PORCH", h=0.25)
-label(6.9, 11.7, "+0.00", h=0.2)
-label(3.5, 8.0, "PARKING", h=0.28)
-label(22.5, 6.4, "GARDEN", h=0.28)
-msp.add_text("ENTRANCE", height=0.3, dxfattribs={"layer": "A-TEXT", "style": "ARCH"}).set_placement(
-    (-4.2, 17.7), align=TextEntityAlignment.MIDDLE_LEFT)
-msp.add_lwpolyline([(-1.9, 17.7), (-1.1, 17.7)], dxfattribs={"layer": "A-TEXT"})
-msp.add_lwpolyline([(-1.35, 17.85), (-1.1, 17.7), (-1.35, 17.55)], dxfattribs={"layer": "A-TEXT"})
-
-# title
-msp.add_text("FLOOR PLAN", height=1.0, dxfattribs={"layer": "A-TEXT", "style": "ARCH"}).set_placement(
-    (13.75, -2.2), align=TextEntityAlignment.MIDDLE_CENTER)
-msp.add_text("SCALE 1:100", height=0.4, dxfattribs={"layer": "A-TEXT", "style": "ARCH"}).set_placement(
-    (13.75, -3.4), align=TextEntityAlignment.MIDDLE_CENTER)
-msp.add_line((10.5, -2.9), (17.0, -2.9), dxfattribs={"layer": "A-TEXT"})
+# ------------------------------------------------------------------ section lines A-A and B-B (as on the sketch)
+def section(a, b, name, tick):
+    msp.add_line(P(*a), P(*b), dxfattribs={"layer": "A-SECTION", "linetype": "DASHDOT"})
+    for e in (a, b):
+        msp.add_line(P(*e), P(e[0] + tick[0], e[1] + tick[1]), dxfattribs={"layer": "A-SECTION"})
+        T(e[0] + tick[0] * 1.8, e[1] + tick[1] * 1.8, name, 0.4, layer="A-SECTION")
 
 
-# ---------------------------------------------------------------- section marks
-def section(p1, p2, name, arrow_dir):
-    msp.add_line(p1, p2, dxfattribs={"layer": "A-SECTION", "linetype": "DASHDOT"})
-    for p in (p1, p2):
-        tip = (p[0] + arrow_dir[0] * 0.9, p[1] + arrow_dir[1] * 0.9)
-        msp.add_line(p, tip, dxfattribs={"layer": "A-SECTION"})
-        msp.add_text(name, height=0.45, dxfattribs={"layer": "A-SECTION", "style": "ARCH"}).set_placement(
-            (tip[0] + arrow_dir[0] * 0.4, tip[1] + arrow_dir[1] * 0.4), align=TextEntityAlignment.MIDDLE_CENTER)
+section((110, 615), (1265, 615), "A", (0, -22))
+section((942, 165), (942, 1160), "B", (22, 0))
 
-
-section((-1.5, 12.95), (29.0, 12.95), "A", (0, 1))
-section((20.3, -1.2), (20.3, 24.5), "B", (1, 0))
-
-# ---------------------------------------------------------------- fit traced part to plot size
-from ezdxf.math import Matrix44
-
-M = Matrix44.scale(SX, SY, 1)
-for e in list(msp)[N0:]:
-    t = e.dxftype()
-    if t == "TEXT":
-        for a in ("insert", "align_point"):
-            if e.dxf.hasattr(a):
-                q = e.dxf.get(a)
-                e.dxf.set(a, (q.x * SX, q.y * SY, 0))
-    elif t in ("CIRCLE", "ARC"):
-        c = e.dxf.center
-        e.dxf.center = (c.x * SX, c.y * SY, 0)
-        e.dxf.radius *= math.sqrt(SX * SY)
-    else:
-        try:
-            e.transform(M)
-        except Exception:
-            q = e.dxf.insert
-            e.dxf.insert = (q.x * SX, q.y * SY, 0)
-
-# ---------------------------------------------------------------- overall dimensions
+# ------------------------------------------------------------------ overall dimensions (metres)
 DIMOV = {"dimlfac": 1, "dimdec": 2, "dimtxt": 0.3, "dimasz": 0.25, "dimexo": 0.1, "dimexe": 0.2, "dimgap": 0.08}
-L_T = {"layer": "A-TEXT"}
-hx0, hx1, hy0, hy1 = 5.5 * SX, 24.5 * SX, 3.2 * SY, 21.0 * SY
-msp.add_linear_dim(base=(0, PLOT_H + 1.8), p1=(0, PLOT_H), p2=(PLOT_W, PLOT_H), dxfattribs=L_T, override=DIMOV).render()
-msp.add_linear_dim(base=(PLOT_W + 2.1, 0), p1=(PLOT_W, 0), p2=(PLOT_W, PLOT_H), angle=90, dxfattribs=L_T, override=DIMOV).render()
-msp.add_linear_dim(base=(0, hy1 + 1.2), p1=(hx0, hy1), p2=(hx1, hy1), dxfattribs=L_T, override=DIMOV).render()
-msp.add_linear_dim(base=(hx0 - 1.1, 0), p1=(hx0, hy0), p2=(hx0, hy1), angle=90, dxfattribs=L_T, override=DIMOV).render()
+DA = {"layer": "A-DIM"}
+hx0, hy1 = P(382, 323)
+hx1, hy0 = P(1095, 990)
+msp.add_linear_dim(base=(0, PLOT_H + 2.0), p1=(0, PLOT_H), p2=(PLOT_W, PLOT_H), dxfattribs=DA, override=DIMOV).render()
+msp.add_linear_dim(base=(PLOT_W + 2.4, 0), p1=(PLOT_W, 0), p2=(PLOT_W, PLOT_H), angle=90, dxfattribs=DA, override=DIMOV).render()
+msp.add_linear_dim(base=(0, PLOT_H - 0.9), p1=(hx0, hy1), p2=(hx1, hy1), dxfattribs=DA, override=DIMOV).render()
 
 doc.saveas(OUT)
 print("saved", OUT)
 
-# ---------------------------------------------------------------- preview PNG
+# ------------------------------------------------------------------ preview PNG
 try:
     import matplotlib
     matplotlib.use("Agg")
@@ -435,11 +399,11 @@ try:
     from ezdxf.addons.drawing.matplotlib import MatplotlibBackend
     from ezdxf.addons.drawing.config import Configuration, BackgroundPolicy, ColorPolicy
 
-    fig = plt.figure(figsize=(14, 12.5))
+    fig = plt.figure(figsize=(14, 13))
     ax = fig.add_axes([0, 0, 1, 1])
     cfg = Configuration(background_policy=BackgroundPolicy.WHITE, color_policy=ColorPolicy.BLACK)
     Frontend(RenderContext(doc), MatplotlibBackend(ax), config=cfg).draw_layout(msp)
     fig.savefig(OUT.with_name("floor_plan_preview.png"), dpi=110)
     print("preview saved")
-except Exception as e:  # preview is optional
+except Exception as e:
     print("preview skipped:", e)
