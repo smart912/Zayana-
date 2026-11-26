@@ -97,10 +97,10 @@ doors_px = [
     ("single", (672, 442), (637, 442), "N"),    # 4  bath 2, from kids 1
     ("single", (790, 517), (747, 517), "N"),    # 5  kids 1
     ("single", (810, 517), (852, 517), "N"),    # 6  master
-    ("single", (990, 410), (948, 410), "N"),    # 7  master bath
+    ("single", (948, 410), (990, 410), "N"),    # 7  master bath (hinge on the wall side)
     ("single", (1003, 580), (1003, 540), "E"),  # 8  office
     ("single", (915, 600), (960, 600), "S"),    # 9  kids 2
-    ("single", (972, 770), (972, 738), "E"),    # 10 bath 3
+    ("single", (972, 738), (972, 770), "E"),    # 10 bath 3 (hinge at the top)
     ("single", (905, 932), (905, 970), "E"),    # 11 kitchen, from dining
     ("single", (1197, 917), (1150, 917), "S"),  # 12 laundry, from the garden
 ]
@@ -108,20 +108,20 @@ openings_px = [((530, 395), (578, 395))]                     # open doorway majl
 windows_px = [((467, 990), (583, 990), EXT), ((702, 990), (845, 990), EXT),   # living / dining
               ((705, 648), (840, 648), INT),                                  # courtyard glazing
               # windows marked in green on the reviewed print
-              ((425, 325), (485, 325), EXT),     # guest bath (WC) north
-              ((625, 325), (665, 325), EXT),     # bath 2 north
+              ((443.3, 325), (466.7, 325), EXT),   # guest bath (WC) north - 0.60 m
+              ((633.3, 325), (656.7, 325), EXT),   # bath 2 north - 0.60 m
               ((700, 325), (785, 325), EXT),     # kids 1 north
               ((840, 325), (915, 325), EXT),     # master north
-              ((995, 325), (1050, 325), EXT),    # master bath north
+              ((1010.3, 325), (1033.7, 325), EXT),   # master bath north - 0.60 m
               ((382, 420), (382, 520), EXT),     # majlis west
               ((1090, 440), (1090, 550), EXT),   # office east
               ((385, 820), (385, 970), EXT),     # living room west
-              ((1020, 800), (1065, 800), EXT),   # bath 3 south
+              ((1030.3, 800), (1053.7, 800), EXT),   # bath 3 south - 0.60 m
               ]
 site_windows_px = [((960, 1103), (1040, 1103)),   # kitchen south (in the boundary wall line)
-                   ((1120, 1103), (1190, 1103))]  # laundry south
+                   ((1143.3, 1103), (1166.7, 1103))]  # laundry south - 0.60 m
 # sliding doors marked in red on the reviewed print: (end_a, end_b, wall thickness)
-sliding_px = [((725, 800), (810, 800), INT),      # living | courtyard
+sliding_px = [((670, 800), (755, 800), INT),      # living | courtyard (centred in the wall)
               ((965, 917), (1050, 917), EXT)]     # kitchen | garden
 
 NRM = {"N": (0, 1), "S": (0, -1), "E": (1, 0), "W": (-1, 0)}
@@ -374,15 +374,23 @@ wc(415, 333, "S"); basin(455, 340, 10)
 Ln([(500, 350), (607, 350)])                            # vanity counter edge
 basin(535, 338, 11, 8); basin(570, 338, 11, 8)
 # majlis
-C(407, 412, 9)                                          # round side table
-band(495, 478, 72, 58, 198, 290)                        # curved sofa (north-west)
-R(393, 448, 432, 490, 6)                                # armchair
-R(455, 440, 537, 512)                                   # majlis table / rug
-dark(box(570, 418, 600, 500))                           # TV unit
-band(527, 497, 50, 36, 30, 145)                         # curved sofa (south)
+poly(Polygon([(392, 405), (545, 405), (545, 431), (418, 431), (418, 505), (392, 505)]))   # L-sofa west + north
+for x in (450, 482, 514):
+    Ln([(x, 405), (x, 431)])
+for y in (455, 480):
+    Ln([(392, y), (418, y)])
+Ln([(398, 411), (545, 411)]); Ln([(398, 411), (398, 505)])                               # backrest
+R(462, 523, 560, 549, 3); Ln([(462, 543), (560, 543)])                                   # sofa south
+for x in (495, 528):
+    Ln([(x, 523), (x, 549)])
+R(549, 405, 565, 421)                                                                    # side table
+R(438, 445, 552, 512)                                                                    # carpet
+R(470, 462, 520, 495, 6)                                                                 # coffee table
+dark(box(570, 418, 600, 500))                                                            # TV unit
 # bath 2
-R(612, 326, 650, 366); Ln([(612, 366), (650, 326)]); Ln([(620, 330), (630, 350)]); Ln([(632, 330), (640, 352)])
-basin(632, 385, 9, 7); wc(615, 420, "E")
+R(612, 330, 672, 366); Ln([(612, 366), (672, 330)]); Ln([(612, 330), (672, 366)])   # shower across the north end
+wc(616, 388, "E")                                        # WC on the west wall, faces the side wall
+basin(624, 421, 8, 8)                                    # basin on the west wall
 # kids 1
 R(718, 335, 770, 440, 5); R(725, 340, 763, 356, 4); Ln([(718, 365), (770, 365)]); Ln([(735, 365), (765, 420)])
 dark(box(612, 448, 640, 512)); dark(box(640, 490, 685, 512))   # wardrobe + cabinet
@@ -395,14 +403,19 @@ Ln([(948, 360), (1048, 360)])                           # vanity counter edge
 basin(975, 340, 11, 7); wc(1020, 333, "S")
 R(1053, 333, 1082, 402, 6); R(1058, 340, 1077, 396, 8)   # bathtub
 # office: L-shaped desk + chair
-poly(Polygon([(1010, 435), (1060, 435), (1060, 515), (1048, 515), (1048, 447), (1010, 447)]))
-C(1037, 462, 11)
+R(1022, 420, 1078, 448, 3)                               # desk on the north wall
+R(1040, 455, 1060, 475, 5); Ln([(1040, 471), (1060, 471)])  # office chair
+R(1068, 485, 1084, 578)                                  # bookshelf on the east wall
+for y in (508, 531, 554):
+    Ln([(1068, y), (1084, y)])
+R(1015, 500, 1045, 525, 5); R(1018, 528, 1042, 535, 2)   # armchair (clear of the door swing)
 # kids 2
 R(978, 648, 1080, 698, 5); R(1052, 655, 1074, 691, 4); Ln([(1040, 648), (1040, 698)]); Ln([(985, 690), (1035, 655)])
 dark(Polygon([(910, 725), (940, 725), (940, 772), (972, 772), (972, 800), (910, 800)]))   # wardrobe (L)
 # bath 3
-wc(1023, 750, "S"); basin(992, 791, 8, 7)
-R(1045, 762, 1080, 797); Ln([(1045, 797), (1080, 762)]); Ln([(1055, 770), (1065, 790)])
+basin(1025, 744, 9, 7)                                   # basin on the north wall
+wc(1030, 793, "N")                                       # WC on the south wall, faces north (side-on to the door)
+R(1052, 740, 1085, 797); Ln([(1052, 797), (1085, 740)]); Ln([(1052, 740), (1085, 797)])   # shower at the east end
 # living room
 poly(Polygon([(398, 905), (398, 830), (402, 820), (412, 813), (500, 813), (500, 845), (440, 845),
               (432, 850), (430, 905)]))                 # L-sofa (west + north)
@@ -483,7 +496,7 @@ def T(x, y, s, h=0.3, rot=0, layer="A-TEXT", align=TextEntityAlignment.MIDDLE_CE
 for x, y, name, size, h in [
     (497, 470, "MAJLIS", "6 x 4 m", 0.3), (420, 372, "BATH", "", 0.2), (553, 375, "WASH", "", 0.16),
     (655, 400, "BATH", "", 0.16), (745, 468, "KIDS 1", "3 x 5 m", 0.26), (870, 468, "MASTER", "3.5 x 5 m", 0.26),
-    (1030, 385, "BATH", "", 0.2), (1032, 530, "OFFICE", "", 0.2), (945, 665, "KIDS 2", "3 x 5 m", 0.24),
+    (1030, 385, "BATH", "", 0.2), (1040, 490, "OFFICE", "", 0.2), (945, 665, "KIDS 2", "3 x 5 m", 0.24),
     (1000, 745, "BATH", "", 0.14), (700, 560, "CORRIDOR", "", 0.24), (548, 700, "HALL", "", 0.24),
     (760, 785, "COURTYARD", "", 0.2), (522, 880, "LIVING ROOM", "8 x 5 m", 0.26), (766, 897, "DINING", "4 x 3 m", 0.18),
     (995, 955, "KITCHEN", "4.5 x 5 m", 0.22), (1145, 990, "LAUNDRY", "", 0.2), (440, 615, "PORCH", "", 0.22),
