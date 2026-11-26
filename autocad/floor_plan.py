@@ -106,7 +106,23 @@ doors_px = [
 ]
 openings_px = [((530, 395), (578, 395))]                     # open doorway majlis -> wash basins
 windows_px = [((467, 990), (583, 990), EXT), ((702, 990), (845, 990), EXT),   # living / dining
-              ((705, 648), (840, 648), INT)]                                  # courtyard glazing
+              ((705, 648), (840, 648), INT),                                  # courtyard glazing
+              # windows marked in green on the reviewed print
+              ((425, 325), (485, 325), EXT),     # guest bath (WC) north
+              ((625, 325), (665, 325), EXT),     # bath 2 north
+              ((700, 325), (785, 325), EXT),     # kids 1 north
+              ((840, 325), (915, 325), EXT),     # master north
+              ((995, 325), (1050, 325), EXT),    # master bath north
+              ((382, 420), (382, 520), EXT),     # majlis west
+              ((1090, 440), (1090, 550), EXT),   # office east
+              ((385, 820), (385, 970), EXT),     # living room west
+              ((1020, 800), (1065, 800), EXT),   # bath 3 south
+              ]
+site_windows_px = [((960, 1103), (1040, 1103)),   # kitchen south (in the boundary wall line)
+                   ((1120, 1103), (1190, 1103))]  # laundry south
+# sliding doors marked in red on the reviewed print: (end_a, end_b, wall thickness)
+sliding_px = [((725, 800), (810, 800), INT),      # living | courtyard
+              ((965, 917), (1050, 917), EXT)]     # kitchen | garden
 
 NRM = {"N": (0, 1), "S": (0, -1), "E": (1, 0), "W": (-1, 0)}
 
@@ -126,10 +142,13 @@ walls = [(P(x1, y1), P(x2, y2), t) for x1, y1, x2, y2, t in walls_px]
 doors = [(k, P(*h), P(*c), s) for k, h, c, s in doors_px]
 openings = [(P(*a), P(*b)) for a, b in openings_px]
 windows = [(P(*a), P(*b), t) for a, b, t in windows_px]
+site_windows = [(P(*a), P(*b), SITE) for a, b in site_windows_px]
+sliding = [(P(*a), P(*b), t) for a, b, t in sliding_px]
 
 solid = unary_union([seg_poly(a, b, t) for a, b, t in walls])
 solid = solid.difference(unary_union(
-    [cut(h, c) for _, h, c, _ in doors] + [cut(a, b) for a, b in openings] + [cut(a, b) for a, b, _ in windows]))
+    [cut(h, c) for _, h, c, _ in doors] + [cut(a, b) for a, b in openings] + [cut(a, b) for a, b, _ in windows]
+    + [cut(a, b) for a, b, _ in sliding]))
 
 
 def add_filled(geom, layer, hatch_layer, color=8):
@@ -151,6 +170,7 @@ gate_car = (P(187, 730), P(187, 928))
 site = LineString([P(PX0, PY1), P(PX1, PY1), P(PX1, PY0), P(PX0, PY0), P(PX0, PY1)]).buffer(
     SITE / 2, join_style="mitre")
 site = site.difference(cut(*gate_ped)).difference(cut(*gate_car))
+site = site.difference(unary_union([cut(a, b) for a, b, _ in site_windows]))
 add_filled(site, "A-SITE-WALL", "A-WALL-HATCH")
 # sliding car-gate leaf, just inside the wall (x 208..218, y 747..942 on the sketch)
 a, b = P(208, 942), P(218, 747)
@@ -182,19 +202,62 @@ for kind, h, c, s in doors:
         leaf(c, mid, s)
 leaf(gate_ped[0], gate_ped[1], "E")      # entrance gate swings into the plot
 
-for a, b, t in windows:
-    for off in (-t / 2, -0.03, 0.03, t / 2):
-        msp.add_line((a[0], a[1] + off), (b[0], b[1] + off), dxfattribs={"layer": "A-WINDOW"})
-    for e in (a, b):
-        msp.add_line((e[0], e[1] - t / 2), (e[0], e[1] + t / 2), dxfattribs={"layer": "A-WINDOW"})
+WN = {"layer": "A-WINDOW"}
+for a, b, t in windows + site_windows:
+    horiz = abs(a[1] - b[1]) < 1e-6
+    for off in (-t / 2, -0.03, 0.03, t / 2):                 # wall faces + double glass line
+        if horiz:
+            msp.add_line((a[0], a[1] + off), (b[0], b[1] + off), dxfattribs=WN)
+        else:
+            msp.add_line((a[0] + off, a[1]), (b[0] + off, b[1]), dxfattribs=WN)
+    for e in (a, b):                                          # jambs
+        if horiz:
+            msp.add_line((e[0], e[1] - t / 2), (e[0], e[1] + t / 2), dxfattribs=WN)
+        else:
+            msp.add_line((e[0] - t / 2, e[1]), (e[0] + t / 2, e[1]), dxfattribs=WN)
 
-# ------------------------------------------------------------------ stairs (x 605..905, y 600..648)
+# sliding doors: two overlapping glazed panels on parallel tracks + jambs + arrows
+for a, b, t in sliding:
+    (x0, y0), (x1, y1) = a, b
+    w = abs(x1 - x0)
+    pw = w * 0.55
+    xs = min(x0, x1)
+    for e in (x0, x1):
+        msp.add_line((e, y0 - t / 2), (e, y0 + t / 2), dxfattribs=DL)
+    for px, off in ((xs, 0.035), (xs + w - pw, -0.035)):
+        pts = [(px, y0 + off - 0.02), (px + pw, y0 + off - 0.02), (px + pw, y0 + off + 0.02), (px, y0 + off + 0.02)]
+        msp.add_lwpolyline(pts, close=True, dxfattribs=DL)
+    yy = y0 + t / 2 + 0.12
+    msp.add_line((xs + w * 0.3, yy), (xs + w * 0.7, yy), dxfattribs=DL)
+    msp.add_lwpolyline([(xs + w * 0.7 - 0.1, yy + 0.05), (xs + w * 0.7, yy), (xs + w * 0.7 - 0.1, yy - 0.05)], dxfattribs=DL)
+
+# ------------------------------------------------------------------ stairs (x 607..905, y 602..646 on the sketch)
+# straight flight between corridor and courtyard: 27 treads of ~0.28 m, handrails, walking line,
+# UP arrow and break line; treads beyond the break are dashed (upper part of the flight).
 ST = {"layer": "A-STAIR"}
-for x in range(612, 905, 10):
-    msp.add_line(P(x, 602), P(x, 646), dxfattribs=ST)
-msp.add_lwpolyline([P(603, 620), P(670, 620)], dxfattribs=ST)
-msp.add_lwpolyline([P(660, 614), P(670, 620), P(660, 626)], dxfattribs=ST)
-msp.add_lwpolyline([P(735, 625), P(750, 625), P(758, 605), P(762, 645), P(770, 625), P(778, 625)], dxfattribs=ST)
+SX0, SX1, SY0, SY1 = 607, 905, 602, 646
+n_tr = 27
+step = (SX1 - SX0) / n_tr
+x_break = 772
+msp.add_lwpolyline([P(SX0, SY0), P(SX1, SY0), P(SX1, SY1), P(SX0, SY1)], close=True, dxfattribs=ST)   # stringers
+for yy in (SY0 + 2.5, SY1 - 2.5):                                                                      # handrails
+    msp.add_line(P(SX0, yy), P(SX1, yy), dxfattribs=ST)
+for i in range(1, n_tr):
+    x = SX0 + i * step
+    attrs = dict(ST) if x < x_break else {"layer": "A-STAIR", "linetype": "DASHED", "ltscale": 0.06}
+    msp.add_line(P(x, SY0), P(x, SY1), dxfattribs=attrs)
+for i in range(1, n_tr + 1):                                                                           # riser numbers
+    if SX0 + i * step < x_break - 6:
+        x = SX0 + (i - 0.5) * step
+        msp.add_text(str(i), height=0.09, dxfattribs={"layer": "A-STAIR", "style": "ARCH"}).set_placement(
+            P(x, SY0 + 7), align=TextEntityAlignment.MIDDLE_CENTER)
+ym = (SY0 + SY1) / 2
+C0 = P(SX0 + step / 2, ym)
+msp.add_circle(C0, 0.05, dxfattribs=ST)                                                                # start of walking line
+msp.add_lwpolyline([C0, P(SX1 - step / 2, ym)], dxfattribs=ST)
+msp.add_lwpolyline([P(SX1 - step / 2 - 9, ym - 5), P(SX1 - step / 2, ym), P(SX1 - step / 2 - 9, ym + 5)], dxfattribs=ST)
+msp.add_lwpolyline([P(x_break - 6, SY1), P(x_break - 2, ym + 4), P(x_break + 2, ym - 4), P(x_break + 6, SY0)], dxfattribs=ST)
+msp.add_lwpolyline([P(x_break + 2, SY1), P(x_break + 6, ym + 4), P(x_break + 10, ym - 4), P(x_break + 14, SY0)], dxfattribs=ST)
 
 # ------------------------------------------------------------------ drawing helpers (pixel input)
 F = "A-FURN"
@@ -431,7 +494,7 @@ for x, y, name, size, h in [
         T(x, y + h / SY * 1.35, size, h * 0.75)
 T(1128, 1089, "WM", 0.13); T(1167, 1089, "DR", 0.13)
 T(358, 702, "+0.00", 0.2, rot=-90); T(432, 722, "+0.15", 0.2, rot=-90)
-T(625, 640, "UP", 0.16)
+T(630, 637, "UP", 0.16)
 T(30, 438, "ENTRANCE", 0.3, align=TextEntityAlignment.MIDDLE_LEFT)
 Ln([(130, 438), (175, 438)], "A-TEXT"); Ln([(165, 432), (175, 438), (165, 444)], "A-TEXT")
 T(530, 115, "FLOOR PLAN", 1.0)
